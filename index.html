@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Heat outlook</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="js/forecast.js"></script>
+</head>
+<body>
+<header class="top"></header>
+<main>
+  <section class="intro">
+    <span class="eyebrow" id="eyebrow"></span><span class="exp" data-i18n="experimental"></span>
+    <h1 id="headline"></h1>
+    <div class="sub" id="subline"></div>
+    <div class="fresh" id="fresh"></div>
+  </section>
+  <aside class="official" id="official"></aside>
+  <section class="panel">
+    <div class="scroll">
+      <div class="striphead" id="striphead"></div>
+      <div class="strip" id="strip"></div>
+    </div>
+  </section>
+  <section class="panel detail" id="detail"></section>
+  <section class="panel">
+    <div class="h3"><span data-i18n="week.title"></span> <button type="button" class="tip" data-tip-key="tip.week">i</button></div>
+    <div id="week"></div>
+  </section>
+  <section class="two">
+    <div class="panel card">
+      <h3 data-i18n="yesterday.title"></h3>
+      <div class="yrow" id="yesterday"></div>
+      <a class="more" id="history-link" href="history.html" data-i18n="yesterday.more"></a>
+    </div>
+    <div class="panel card">
+      <h3 data-i18n="sub.title"></h3>
+      <form id="sub">
+        <fieldset><legend data-i18n="sub.cities"></legend><span id="sub-cities"></span></fieldset>
+        <fieldset><legend data-i18n="sub.often"></legend>
+          <label><input type="radio" name="m" value="alert" checked> <span data-i18n="sub.mode.alert"></span></label>
+          <button type="button" class="tip" id="alerttip">i</button>
+          <label><input type="radio" name="m" value="daily"> <span data-i18n="sub.mode.daily"></span></label>
+        </fieldset>
+        <button class="btn" type="submit" data-i18n="sub.button"></button>
+        <div class="note" data-i18n="sub.note"></div>
+      </form>
+    </div>
+  </section>
+  <section class="panel todo">
+    <div class="h3"><span data-i18n="todo.title"></span> <span class="badge muted" data-i18n="todo.later"></span></div>
+    <div class="note" id="todonote"></div>
+    <div class="rows" id="todorows"></div>
+  </section>
+</main>
+<footer></footer>
+</body>
+</html>

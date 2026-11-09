@@ -75,8 +75,8 @@ main > * { min-width:0; }
 .day .big { font-size:30px; font-weight:600; color:var(--blue-100); line-height:1.1; }
 .day .lbl { font-size:11px; color:var(--grey-100); margin-top:-2px; }
 .day .rng, .day .air { font-size:12px; }
-.day.later { opacity:.62; border-top-style:dashed; background:repeating-linear-gradient(135deg, #fff 0 6px, #f7f8f8 6px 12px); }
-.day.later:hover, .day.later[aria-pressed="true"] { opacity:1; }
+.day.later { border-top-style:dashed; border-top-color:color-mix(in srgb, var(--lv) 55%, white); background:repeating-linear-gradient(135deg, #fff 0 6px, #f7f8f8 6px 12px); }
+.day.past { filter:grayscale(1); }
 .lv-green{--lv:var(--alert-green)} .lv-yellow{--lv:var(--alert-yellow)} .lv-orange{--lv:var(--alert-orange)} .lv-red{--lv:var(--alert-red)} .lv-purple{--lv:var(--alert-purple)}
 
 /* tooltips */

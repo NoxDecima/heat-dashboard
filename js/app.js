@@ -10,7 +10,8 @@ export const LANGS = ["en"];                       // add "es" with i18n/es.json
 const LOCALE = { en: "en-GB", es: "es-PE" };       // date and number formats per language
 
 const params = new URLSearchParams(location.search);
-export const param = k => params.get(k);
+const LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);   // ?data= and ?now= work on a local server only
+export const param = k => (LOCAL || !["data", "now"].includes(k) ? params.get(k) : null);
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked: the choice lasts one page */ } },
@@ -20,10 +21,10 @@ store.set("lang", lang);
 const locale = LOCALE[lang] || lang;
 let STR = {};
 
-export const t = (key, vars = {}) => (STR[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+export const t = (key, vars = {}) => (STR[key] ?? esc(key)).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const safeUrl = u => (/^https:\/\//.test(u || "") ? esc(u) : "#");
-export const tip = (key, vars) => `<button type="button" class="tip" data-tip="${esc(t(key, vars))}" aria-label="${esc(t("tip.label"))}">i</button>`;
+export const tip = (key, vars) => { const s = esc(t(key, vars)); return `<button type="button" class="tip" data-tip="${s}" aria-label="${s}">i</button>`; };
 
 // Numbers and dates in the page language. Dates in the data are calendar dates (YYYY-MM-DD).
 export const num = (x, d = 0) => new Intl.NumberFormat(locale, { minimumFractionDigits: d, maximumFractionDigits: d }).format(x);
@@ -48,11 +49,25 @@ export const query = city => {
 const langHref = l => { const q = new URLSearchParams(location.search); q.set("lang", l); return `?${q}`; };
 
 async function loadStrings() {
-  STR = await (await fetch(`i18n/${lang}.json`)).json();
+  const r = await fetch(`i18n/${lang}.json`);
+  if (!r.ok) throw new Error(String(r.status));
+  STR = await r.json();
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = t(el.dataset.i18n); });
-  document.querySelectorAll("[data-tip-key]").forEach(el => { el.dataset.tip = t(el.dataset.tipKey); el.setAttribute("aria-label", t("tip.label")); });
+  document.querySelectorAll("[data-tip-key]").forEach(el => { el.dataset.tip = t(el.dataset.tipKey); el.setAttribute("aria-label", el.dataset.tip); });
 }
+
+// Every level and quantity name ends up in class names and lookups: only known values pass.
+const QS = ["hi", "tmax", "tmin"];
+const valid = doc => {
+  const lv = l => ORDER.includes(l), sub = (a, b) => a.every(x => b.includes(x));
+  try {
+    const { rule: r, days, yesterday: y, history } = doc;
+    return r.levels.every(lv) && lv(r.alert_min_level) && sub(r.quantities, QS) && days.every(d => lv(d.level))
+      && (!y || (lv(y.level) && lv(y.observed.level) && sub(Object.keys(y.forecast), QS)))
+      && history.every(h => lv(h.obs.level) && Object.values(h.f).every(f => lv(f[0])));
+  } catch { return false; }                        // a missing block is a schema problem too
+};
 
 async function loadCity(city) {
   let doc;
@@ -63,7 +78,7 @@ async function loadCity(city) {
   } catch {
     throw new Error(t("error.load"));
   }
-  if (doc.schema !== SCHEMA) throw new Error(t("error.schema"));
+  if (doc?.schema !== SCHEMA || !valid(doc)) throw new Error(t("error.schema"));
   return doc;
 }
 
@@ -99,7 +114,11 @@ export function showError(msg) {
 
 // Page start: strings, header, then render(city, doc). A page without data passes needsData = false.
 export async function start(render, needsData = true) {
-  await loadStrings();
+  try {
+    await loadStrings();
+  } catch {
+    return showError("The page could not be loaded. Please try again later.");   // no strings file, so no translation
+  }
   const city = CITIES[param("city")] ? param("city") : null;
   header(city);
   if (!needsData) return render(city);
@@ -111,6 +130,10 @@ export async function start(render, needsData = true) {
     footer(city);
     return showError(e.message);
   }
-  document.title = `${t("picker.title")} · ${t(`city.${city}.name`)}`;
-  render(city, doc);
+  try {
+    render(city, doc);
+  } catch (e) {
+    console.error(e);
+    showError(t("error.schema"));
+  }
 }

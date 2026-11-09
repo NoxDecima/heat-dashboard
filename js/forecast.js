@@ -2,17 +2,21 @@
 // week chart, yesterday, the alert request and the what-to-do placeholder.
 import { CITIES, CONTACT, rank, t, esc, safeUrl, num, deg, day, time, now, level, badge, tip, start, footer, query } from "./app.js";
 
-let D, city, HI, W;
+let D, city, HI, W, TODAY;
 const $ = s => document.querySelector(s);
 const main = d => d[D.rule.quantities[0]];
 const thr = (d, q) => d.thresholds[q] || {};
 const share = () => num(D.rule.share * 100);
-const dayName = d => (d.lead === 0 ? t("day.today") : d.lead === 1 ? t("day.tomorrow") : day(d.date, { weekday: "long" }));
-const shortName = d => (d.lead < 2 ? dayName(d) : day(d.date, { weekday: "short", day: "numeric" }));
+// Today and Tomorrow from the viewer's clock in the city, not from the file's lead: a file read late in the day is a day behind.
+const ahead = d => Math.round((Date.parse(d.date) - Date.parse(TODAY)) / 864e5);
+const dayName = d => (ahead(d) === 0 ? t("day.today") : ahead(d) === 1 ? t("day.tomorrow") : day(d.date, { weekday: "long" }));
+const shortName = d => (ahead(d) === 0 || ahead(d) === 1 ? dayName(d) : day(d.date, { weekday: "short", day: "numeric" }));
 const high = () => D.days.filter(d => rank(d.level) >= rank(D.rule.alert_min_level));
 
 start((c, doc) => {
   city = c; D = doc; HI = D.rule.quantities[0] === "hi"; W = Math.min(D.rule.alert_window_days, D.days.length);
+  TODAY = new Intl.DateTimeFormat("en-CA", { timeZone: D.timezone }).format(now());
+  document.title = t("title.forecast", { city: t(`city.${city}.name`) });
   intro(); official(); strip();
   const first = high()[0];
   show(first ? D.days.indexOf(first) : 0);
@@ -20,14 +24,14 @@ start((c, doc) => {
 });
 
 function intro() {
-  const first = high()[0], c = t(`city.${city}.name`);
-  const when = first && (first.lead === 0 ? t("when.today") : first.lead === 1 ? t("when.tomorrow")
+  const first = high()[0], c = t(`city.${city}.name`), td = D.days.find(d => ahead(d) === 0);
+  const when = first && (ahead(first) === 0 ? t("when.today") : ahead(first) === 1 ? t("when.tomorrow")
     : day(first.date, { weekday: "long", day: "numeric", month: "short" }));
   const key = (first ? "headline.heat" : "headline.calm") + (D.official ? ".scoped" : "");
   $("#eyebrow").textContent = t("eyebrow.forecast", { place: t(`city.${city}.place`) });
   $("#headline").innerHTML = t(key, { level: first ? `<span class="mark">${level(first.level)}</span>` : "", when, place: t(`city.${city}.short`) });
   $("#subline").innerHTML = (first ? `${t("subline.count", { level: level(D.rule.alert_min_level), n: num(high().length) })} ` : "")
-    + t("subline.today", { badge: badge(D.days[0].level) });
+    + (td ? t("subline.today", { badge: badge(td.level) }) : "");
   const g = new Date(D.generated), old = (now() - g) / 36e5 > 26, el = $("#fresh");
   el.className = `fresh${old ? " stale" : ""}`;
   el.textContent = old ? t("fresh.stale", { time: time(g, D.timezone), city: c })
@@ -57,7 +61,7 @@ function strip() {
   $("#striphead").innerHTML = `<div style="grid-column:span ${W}">${t("strip.next", { n: W })} ${tip("tip.next")}</div>`
     + (W < 7 ? `<div class="later" style="grid-column:span ${7 - W}">${t("strip.later", { from: W + 1 })} ${tip("tip.later")}</div>` : "");
   $("#strip").innerHTML = D.days.map((d, i) => `
-    <button class="day lv-${esc(d.level)}${d.lead >= W ? " later" : ""}" data-i="${i}" aria-pressed="false">
+    <button class="day lv-${esc(d.level)}${d.lead >= W ? " later" : ""}${ahead(d) < 0 ? " past" : ""}" data-i="${i}" aria-pressed="false">
       <span class="dn">${dayName(d)}</span><span class="dd">${day(d.date, { day: "numeric", month: "short" })}</span>
       ${badge(d.level)}
       <span class="big">${deg(main(d).p50)}</span>
@@ -120,8 +124,8 @@ function show(i) {
       ${d.lead >= W ? `<span class="badge muted">${t("detail.later", { n: d.lead + 1 })}</span>` : ""}</h2>
     <p class="lead">${lead}</p>
     <div class="dgrid"><div>
-      ${HI ? `<div class="h3">${t("detail.dots.title", { n: d.hi.members.filter(v => v != null).length })} ${tip("tip.dots")}</div>${dots(d)}`
-        : `<div class="h3">${t("detail.scatter.title", { n: d.tmax.members.filter(v => v != null).length })} ${tip("tip.scatter")}</div>${scatter(d)}`}
+      ${HI ? (d.hi?.members ? `<div class="h3">${t("detail.dots.title", { n: d.hi.members.filter(v => v != null).length })} ${tip("tip.dots")}</div>${dots(d)}` : "")
+        : d.tmax?.members && d.tmin?.members ? `<div class="h3">${t("detail.scatter.title", { n: d.tmax.members.filter(v => v != null).length })} ${tip("tip.scatter")}</div>${scatter(d)}` : ""}
       <div class="h3" style="margin-top:12px">${t("detail.chance")}</div>
       <div class="chance">${lv.map(l => `<span>${level(l)}</span><span class="track lv-${l}"><span class="fill" style="width:${(d.chance[l] ?? 0) * 100}%"></span><span class="cut" style="left:${D.rule.share * 100}%"></span></span><b>${num((d.chance[l] ?? 0) * 100)}%</b>`).join("")}</div>
       <div class="note">${t("detail.chance.note", { share: share() })}</div>
@@ -192,7 +196,7 @@ function yesterday() {
 // The alert request: a prepared mail to us for now, the sign-up function later (DL-8).
 function request() {
   $("#alerttip").dataset.tip = t("tip.alertmail", { level: level(D.rule.alert_min_level), n: W });
-  $("#alerttip").setAttribute("aria-label", t("tip.label"));
+  $("#alerttip").setAttribute("aria-label", $("#alerttip").dataset.tip);
   $("#sub-cities").innerHTML = Object.keys(CITIES).map(c => `<label><input type="checkbox" name="c" value="${c}"${c === city ? " checked" : ""}> ${t(`city.${c}.name`)}</label>`).join("");
   $("#sub").onsubmit = e => {
     e.preventDefault();

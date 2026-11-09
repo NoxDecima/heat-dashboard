@@ -18,6 +18,7 @@ const rows = () => {
 
 start((c, doc) => {
   city = c; D = doc; Q = D.rule.quantities[0]; MIN = D.rule.alert_min_level;
+  document.title = t("title.history", { city: t(`city.${city}.name`) });
   $("#eyebrow").textContent = t("eyebrow.history", { place: t(`city.${city}.place`) });
   $("#sub").textContent = t("history.sub", { station: D.station });
   footer(city);
@@ -124,7 +125,7 @@ function info(c) {
 }
 
 function scores() {
-  const xs = rows(), pct = (a, b) => (b ? `${num(100 * a / b)}%` : "n/a");
+  const xs = rows(), pct = (a, b) => (b ? `${num(100 * a / b)}%` : t("history.na"));
   const name = L => (L <= 1 ? t(`history.lead.${L}`) : t("history.leadname", { n: L }));
   let body = "";
   for (let L = 0; L < 7; L++) {
@@ -136,7 +137,7 @@ function scores() {
     };
     const d = c(MIN), y = c(D.rule.levels[0]), err = ys.map(h => h.f[L][2] - h.obs[Q]);
     body += `<tr class="${L < D.rule.alert_window_days ? "win" : ""}"><td>${name(L)}</td><td>${num(ys.length)}</td><td>${mean(err) >= 0 ? "+" : ""}${deg(mean(err), 1)}</td><td>${deg(mean(err.map(Math.abs)), 1)}</td>
-      <td>${pct(d.hit, d.hit + d.miss)}</td><td>${pct(d.fa, d.hit + d.fa)}</td><td>${d.hit} / ${d.miss} / ${d.fa}</td><td>${pct(y.hit, y.hit + y.miss)}</td><td>${pct(y.fa, y.hit + y.fa)}</td></tr>`;
+      <td>${pct(d.hit, d.hit + d.miss)}</td><td>${pct(d.fa, d.hit + d.fa)}</td><td>${num(d.hit)} / ${num(d.miss)} / ${num(d.fa)}</td><td>${pct(y.hit, y.hit + y.miss)}</td><td>${pct(y.fa, y.hit + y.fa)}</td></tr>`;
   }
   const or = l => t("history.col.orhigher", { level: level(l) });
   $("#sc").innerHTML = `<thead><tr><th></th><th></th><th colspan="2" class="c">${t(`history.col.q.${Q}`)}</th><th colspan="3" class="c">${or(MIN)}</th><th colspan="2" class="c">${or(D.rule.levels[0])}</th></tr>

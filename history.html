@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Heat outlook · Track record</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="js/history.js"></script>
+</head>
+<body>
+<header class="top"></header>
+<main>
+  <section class="intro">
+    <span class="eyebrow" id="eyebrow"></span><span class="exp" data-i18n="experimental"></span>
+    <h1 data-i18n="history.title"></h1>
+    <div class="sub" id="sub"></div>
+    <div class="controls"><span data-i18n="history.period"></span><span class="seg" id="period"></span><span data-i18n="history.lead"></span><span class="seg" id="lead"></span></div>
+  </section>
+  <div id="body" class="stack">
+    <section class="stats" id="stats"></section>
+    <div class="basis" id="basis"></div>
+    <section class="panel">
+      <div class="h3"><span data-i18n="history.daybyday"></span> <button type="button" class="tip" data-tip-key="tip.daybyday">i</button></div>
+      <div class="tscroll" id="dbd"></div>
+      <div class="legend" id="legend"></div>
+      <div class="info" id="info" data-i18n="history.info.hint"></div>
+    </section>
+    <section class="panel">
+      <details><summary data-i18n="history.tech"></summary>
+        <p class="note" id="technote"></p>
+        <div class="tscroll"><table class="sc" id="sc"></table></div>
+        <p class="note" data-i18n="history.tech.small"></p>
+      </details>
+    </section>
+  </div>
+</main>
+<footer></footer>
+</body>
+</html>

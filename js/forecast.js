@@ -114,7 +114,7 @@ function show(i) {
   const next = lv[lv.indexOf(lvl) + 1];
   const cond = l => (HI ? t("detail.cond.hi", { v: deg(thr(d, "hi")[l]) })
     : t("detail.cond.dn", { day: deg(thr(d, "tmax")[l], 1), night: deg(thr(d, "tmin")[l], 1) }));
-  const lead = d.level === "green" ? t("detail.lead.none", { pct, level: level(lv[0]), cond: cond(lv[0]), share: share() })
+  const lead = d.level === "green" ? t(pct === "0" ? "detail.lead.zero" : "detail.lead.none", { pct, level: level(lv[0]), cond: cond(lv[0]), share: share() })
     : t("detail.lead.level", { pct, level: level(lvl), cond: cond(lvl), share: share() })
       + (next ? ` ${t("detail.lead.next", { pct: num((d.chance[next] ?? 0) * 100), level: level(next) })}` : "");
   const rows = HI ? [["hi", "row.hi", "tip.hi"], ["tmax", "row.tmax.air", ""], ["tmin", "row.tmin", "tip.night"]]
@@ -123,6 +123,7 @@ function show(i) {
     <h2>${dayName(d)}, ${day(d.date, { day: "numeric", month: "long" })} ${badge(d.level)}
       ${d.lead >= W ? `<span class="badge muted">${t("detail.later", { n: d.lead + 1 })}</span>` : ""}</h2>
     <p class="lead">${lead}</p>
+    ${D.decision ? `<p class="why"><a href="alert.html${query(city)}&day=${i + 1}">${t("detail.why", { level: level(d.level) })}</a></p>` : ""}
     <div class="dgrid"><div>
       ${HI ? (d.hi?.members ? `<div class="h3">${t("detail.dots.title", { n: d.hi.members.filter(v => v != null).length })} ${tip("tip.dots")}</div>${dots(d)}` : "")
         : d.tmax?.members && d.tmin?.members ? `<div class="h3">${t("detail.scatter.title", { n: d.tmax.members.filter(v => v != null).length })} ${tip("tip.scatter")}</div>${scatter(d)}` : ""}

@@ -50,7 +50,7 @@ function text(s, i) {
       const cond = x => (HI ? t("detail.cond.hi", { v: deg(thr("hi")[x]) })
         : t("detail.cond.dn", { day: deg(thr("tmax")[x], 1), night: deg(thr("tmin")[x], 1) }));
       const share = num(D.rule.share * 100), sh = s.shares || {};
-      return s.level === "green" ? t("detail.lead.none", { pct: pct(sh[lv[0]]), level: level(lv[0]), cond: cond(lv[0]), share })
+      return s.level === "green" ? t(pct(sh[lv[0]]) === "0" ? "detail.lead.zero" : "detail.lead.none", { pct: pct(sh[lv[0]]), level: level(lv[0]), cond: cond(lv[0]), share })
         : t("detail.lead.level", { pct: pct(sh[l]), level: level(l), cond: cond(l), share })
           + (next ? ` ${t("detail.lead.next", { pct: pct(sh[next]), level: level(next) })}` : "");
     }

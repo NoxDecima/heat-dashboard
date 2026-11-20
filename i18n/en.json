@@ -299,5 +299,6 @@
   "mail.changed": "A mail goes to subscribers: the alert level changed.",
   "mail.ended": "A mail goes to subscribers: the alert has ended.",
   "mail.none": "Nothing changed at {min} or above, so no alert mail. Subscribers who chose every morning get their usual mail.",
-  "detail.why": "Why {level}? See how the level was decided →"
+  "detail.why": "Why {level}? See how the level was decided →",
+  "detail.lead.zero": "None of the forecasts reach {level} ({cond}). Below {share}%, there is no warning."
 }

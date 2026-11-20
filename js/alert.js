@@ -152,7 +152,7 @@ function track() {
 }
 
 function chips() {
-  const meas = (DEC.measured || []).map(m => `<div class="dchip measured${m.level ? ` lv-${esc(m.level)}` : ""}"><small>${day(m.date, { weekday: "short", day: "numeric", month: "short" })}</small><b>${m.level ? level(m.level) : t("alert.nomeasure")}</b><small>${t("alert.measured")}</small></div>`).join("");
+  const meas = (DEC.measured || []).map(m => `<div class="dchip measured${m.level ? ` lv-${esc(m.level)}` : ""}"><small>${day(m.date, { weekday: "short", day: "numeric", month: "short" })}</small><b>${m.level ? level(m.level) : t("alert.nomeasure")}</b><small>${m.level ? t("alert.measured") : ""}</small></div>`).join("");
   $("#days").innerHTML = meas + D.days.map((d, i) => `<button class="dchip lv-${esc(d.level)}" type="button" data-i="${i}" aria-pressed="${i === sel}"><small>${day(d.date, { weekday: "short", day: "numeric", month: "short" })}</small><b>${level(d.level)}</b><small>${t("alert.dayno", { n: num(d.lead + 1) })}</small></button>`).join("");
   $("#days").onclick = e => { const b = e.target.closest("button[data-i]"); if (b) { stop(); select(+b.dataset.i, true); } };
   const d = D.days[sel];

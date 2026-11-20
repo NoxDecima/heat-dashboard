@@ -59,13 +59,30 @@ async function loadStrings() {
 
 // Every level and quantity name ends up in class names and lookups: only known values pass.
 const QS = ["hi", "tmax", "tmin"];
+// The rule steps of "How the alert is decided": rule names and levels from fixed lists, numbers as numbers, dates as dates.
+const RULES = ["forecasts", "persist", "early", "night", "families", "agree", "dip", "override"];
+const ISO = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
+const validDecision = (dec, days) => {
+  if (dec == null) return true;
+  const lv = l => ORDER.includes(l), opt = l => l == null || lv(l), n = v => v == null || typeof v === "number";
+  return ["machine", "bands"].includes(dec.chain) && opt(dec.start) && (dec.measured || []).every(m => ISO(m.date) && lv(m.level))
+    && dec.days.length === days.length && dec.days.every(d => d.steps.length > 0 && d.steps.every(s =>
+      RULES.includes(s.rule) && lv(s.level) && typeof s.applies === "boolean"
+      && ["moved", "unknown", "night_p50", "days", "needed"].every(k => n(s[k]))
+      && Object.values(s.shares || {}).every(x => typeof x === "number")
+      && opt(s.prev) && opt(s.yesterday) && opt(s.tomorrow) && opt(s.tier)
+      && (!s.night_rule || (["absolute", "percentile"].includes(s.night_rule.kind) && n(s.night_rule.value) && n(s.night_rule.p)))))
+    && (!dec.mail || (lv(dec.mail.top) && opt(dec.mail.prev_top) && [null, "raised", "changed", "ended"].includes(dec.mail.kind)));
+};
+
 const valid = doc => {
   const lv = l => ORDER.includes(l), sub = (a, b) => a.every(x => b.includes(x));
   try {
     const { rule: r, days, yesterday: y, history } = doc;
     return r.levels.every(lv) && lv(r.alert_min_level) && sub(r.quantities, QS) && days.every(d => lv(d.level))
       && (!y || (lv(y.level) && lv(y.observed.level) && sub(Object.keys(y.forecast), QS)))
-      && history.every(h => lv(h.obs.level) && Object.values(h.f).every(f => lv(f[0])));
+      && history.every(h => lv(h.obs.level) && Object.values(h.f).every(f => lv(f[0])))
+      && validDecision(doc.decision, days);
   } catch { return false; }                        // a missing block is a schema problem too
 };
 
@@ -84,7 +101,7 @@ async function loadCity(city) {
 
 function header(city) {
   const page = location.pathname.split("/").pop().replace(".html", "") || "index";
-  const nav = [["index", "nav.forecast"], ["history", "nav.history"], ["docs", "nav.docs"]]
+  const nav = [["index", "nav.forecast"], ["history", "nav.history"], ["alert", "nav.alert"], ["docs", "nav.docs"]]
     .map(([p, k]) => `<a href="${p}.html${query(city)}" class="${p === page ? "on" : ""}">${t(k)}</a>`).join("");
   const opts = (city ? "" : `<option value="">${t("nav.choose")}</option>`) + Object.keys(CITIES)
     .map(c => `<option value="${c}"${c === city ? " selected" : ""}>${t(`city.${c}.name`)}</option>`).join("");

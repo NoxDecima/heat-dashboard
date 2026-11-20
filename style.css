@@ -158,3 +158,37 @@ footer { border-top:1px solid var(--cream-120); background:var(--white); }
 footer .in { max-width:1080px; margin:0 auto; padding:18px 20px 28px; font-size:12px; color:var(--grey-100); display:flex; gap:20px; flex-wrap:wrap; align-items:center; }
 footer .in p { margin:0; flex:1 1 420px; }
 footer .links { display:flex; gap:14px; }
+
+/* how the alert is decided */
+.days { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.dchip { flex: 0 0 auto; min-width: 84px; text-align: left; background: var(--white); border: 1px solid var(--cream-120); border-top: 5px solid var(--lv, var(--cream-120)); border-radius: 6px; padding: 6px 8px; cursor: pointer; color: var(--blue-60); display: grid; gap: 1px; font: inherit; }
+.dchip b { color: var(--blue-100); font-weight: 600; font-size: 13px; }
+.dchip small { font-size: 11px; color: var(--grey-100); }
+.dchip.measured { cursor: default; background: var(--cream-100); border-top-style: dashed; }
+.dchip[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--blue-60); }
+.ctrl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.ctrl .sep { flex: 1; }
+.ctrl button { font: inherit; border: 1px solid var(--cream-120); background: var(--white); color: var(--blue-100); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-weight: 500; }
+.ctrl button.primary { background: var(--blue-100); color: var(--white); border-color: var(--blue-100); }
+#track svg { display: block; width: 100%; }
+#track .hit { cursor: pointer; }
+.sentence { margin-top: 10px; background: var(--cream-100); border-radius: 6px; padding: 10px 12px; font-size: 14px; color: var(--blue-100); }
+.mv { display: inline-block; font-size: 11px; font-weight: 600; background: var(--blue-100); color: var(--white); border-radius: 9999px; padding: 0 7px; margin-right: 2px; }
+.ladder { display: grid; }
+.step { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--cream-120); align-items: start; }
+.step .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--cream-100); color: var(--grey-100); }
+.step h3 { font-size: 14px; font-weight: 600; }
+.step p { margin: 2px 0 0; font-size: 13px; max-width: 70ch; }
+.step.off h3, .step.off p { color: var(--grey-100); }
+.step.changed { background: var(--cream-100); border-radius: 8px; padding-inline: 8px; border-bottom-color: transparent; margin-block: 2px; }
+.step.changed .n { background: var(--blue-100); color: var(--white); }
+.step .dir { margin-left: 10px; font-size: 11px; font-weight: 600; color: var(--blue-100); border: 1px solid var(--blue-100); border-radius: 9999px; padding: 0 8px; white-space: nowrap; }
+.step.down .dir { border-style: dashed; }
+.step .res { display: flex; gap: 6px; align-items: center; white-space: nowrap; font-size: 12px; color: var(--grey-100); }
+.step.final { background: var(--cream-100); border-radius: 8px; padding-inline: 8px; margin-top: 6px; border-bottom: 0; }
+.mailbox { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; }
+.mailbox .ico { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; background: var(--green-40); color: var(--blue-100); font-weight: 600; }
+.mailbox h3 { font-size: 15px; font-weight: 600; }
+.mailbox p { margin: 2px 0 0; }
+.detail .why { margin: -6px 0 12px; font-size: 13px; }
+@media (max-width: 600px) { .step { grid-template-columns: 28px minmax(0, 1fr); } .step .res { grid-column: 2; } }

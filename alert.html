@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Heat outlook · How the alert is decided</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="js/alert.js"></script>
+</head>
+<body>
+<header class="top"></header>
+<main>
+  <section class="intro">
+    <span class="eyebrow" id="eyebrow"></span><span class="exp" data-i18n="experimental"></span>
+    <h1 data-i18n="alert.title"></h1>
+    <div class="sub" id="introtext"></div>
+  </section>
+  <div id="body" class="stack">
+    <section class="panel">
+      <span id="dayslabel" hidden data-i18n="alert.days"></span>
+      <div class="days" id="days" role="group" aria-labelledby="dayslabel"></div>
+      <div class="ctrl">
+        <button type="button" id="prev" data-i18n="alert.prev"></button>
+        <button type="button" id="next" data-i18n="alert.next"></button>
+        <button type="button" id="play" class="primary" data-i18n="alert.play"></button>
+        <span class="sep"></span>
+        <span class="note" id="dayhint"></span>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="tscroll" id="track"></div>
+      <div class="sentence" id="sentence"></div>
+      <p class="note" data-i18n="alert.track.note"></p>
+    </section>
+    <section class="panel" id="ladder"></section>
+    <section class="panel mailbox" id="mail">
+      <span class="ico" aria-hidden="true">✉</span>
+      <div><h3 data-i18n="mail.title"></h3><p id="mailbody"></p></div>
+    </section>
+  </div>
+</main>
+<footer></footer>
+</body>
+</html>

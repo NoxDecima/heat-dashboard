@@ -10,6 +10,7 @@
   --font:"Poppins","Helvetica Neue",Arial,sans-serif;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin:0; font-family:var(--font); color:var(--blue-60); background:var(--cream-100); font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased; }
 a { color:var(--blue-60); text-decoration-color:var(--green-100); text-underline-offset:3px; }
 h1,h2,h3 { color:var(--blue-100); margin:0; line-height:1.2; }
@@ -160,7 +161,7 @@ footer .in p { margin:0; flex:1 1 420px; }
 footer .links { display:flex; gap:14px; }
 
 /* how the alert is decided */
-.days { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.days { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; }   /* side padding keeps the selected outline inside the scroller */
 .dchip { flex: 0 0 auto; min-width: 84px; text-align: left; background: var(--white); border: 1px solid var(--cream-120); border-top: 5px solid var(--lv, var(--cream-120)); border-radius: 6px; padding: 6px 8px; cursor: pointer; color: var(--blue-60); display: grid; gap: 1px; font: inherit; }
 .dchip b { color: var(--blue-100); font-weight: 600; font-size: 13px; }
 .dchip small { font-size: 11px; color: var(--grey-100); }
@@ -169,6 +170,7 @@ footer .links { display:flex; gap:14px; }
 .ctrl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .ctrl .sep { flex: 1; }
 .ctrl button { font: inherit; border: 1px solid var(--cream-120); background: var(--white); color: var(--blue-100); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-weight: 500; }
+.ctrl button:disabled { opacity: .45; cursor: default; }
 .ctrl button.primary { background: var(--blue-100); color: var(--white); border-color: var(--blue-100); }
 #track svg { display: block; width: 100%; }
 #track .hit { cursor: pointer; }

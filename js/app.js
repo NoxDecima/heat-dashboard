@@ -36,6 +36,25 @@ export const now = () => (param("now") ? new Date(param("now")) : new Date());  
 export const level = l => esc(t(`level.${l}`));
 export const badge = l => `<span class="badge b-${esc(l)}">${level(l)}</span>`;
 
+// Today and Tomorrow from the viewer's clock in the city, not from the file's lead: a file read late in the day is a day behind.
+export const dayNamer = timeZone => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone }).format(now());
+  const ahead = d => Math.round((Date.parse(d.date) - Date.parse(today)) / 864e5);
+  const dayName = d => (ahead(d) === 0 ? t("day.today") : ahead(d) === 1 ? t("day.tomorrow") : day(d.date, { weekday: "long" }));
+  return { today, ahead, dayName, shortName: d => (ahead(d) === 0 || ahead(d) === 1 ? dayName(d) : day(d.date, { weekday: "short", day: "numeric" })) };
+};
+
+// What the forecasts say for a day at d.level: the share at that level (No warning: at the first level) and at the next.
+export const forecastLead = (d, shares, rule) => {
+  const lv = rule.levels, l = d.level === "green" ? lv[0] : d.level, next = lv[lv.indexOf(l) + 1], th = q => d.thresholds[q] || {};
+  const pct = x => num((shares[x] ?? 0) * 100);
+  const cond = rule.quantities[0] === "hi" ? t("detail.cond.hi", { v: deg(th("hi")[l]) })
+    : t("detail.cond.dn", { day: deg(th("tmax")[l], 1), night: deg(th("tmin")[l], 1) });
+  const v = { pct: pct(l), level: level(l), cond, share: num(rule.share * 100) };
+  return d.level === "green" ? t(v.pct === "0" ? "detail.lead.zero" : "detail.lead.none", v)
+    : t("detail.lead.level", v) + (next ? ` ${t("detail.lead.next", { pct: pct(next), level: level(next) })}` : "");
+};
+
 // ?data= may point at a local fixtures folder (development, smoke test), nothing else.
 const base = /^fixtures\/[\w/]*$/.test(param("data") || "") ? param("data") : DATA_BASE;
 export const dataUrl = city => `${base}${city}.json`;
@@ -65,13 +84,14 @@ const ISO = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 const validDecision = (dec, days) => {
   if (dec == null) return true;
   const lv = l => ORDER.includes(l), opt = l => l == null || lv(l), n = v => v == null || typeof v === "number";
-  return ["machine", "bands"].includes(dec.chain) && opt(dec.start) && (dec.measured || []).every(m => ISO(m.date) && lv(m.level))
-    && dec.days.length === days.length && dec.days.every(d => d.steps.length > 0 && d.steps.every(s =>
+  return ["machine", "bands"].includes(dec.chain) && opt(dec.start) && (dec.measured || []).every(m => ISO(m.date) && opt(m.level))
+    && dec.days.length === days.length && dec.days.every((d, i) => d.steps.length > 0 && d.steps.every(s =>
       RULES.includes(s.rule) && lv(s.level) && typeof s.applies === "boolean"
       && ["moved", "unknown", "night_p50", "days", "needed"].every(k => n(s[k]))
       && Object.values(s.shares || {}).every(x => typeof x === "number")
       && opt(s.prev) && opt(s.yesterday) && opt(s.tomorrow) && opt(s.tier)
-      && (!s.night_rule || (["absolute", "percentile"].includes(s.night_rule.kind) && n(s.night_rule.value) && n(s.night_rule.p)))))
+      && (!s.night_rule || (["absolute", "percentile"].includes(s.night_rule.kind) && n(s.night_rule.value) && n(s.night_rule.p))))
+      && d.date === days[i].date && d.steps.at(-1).level === days[i].level)   // the steps end at the level the day shows
     && (!dec.mail || (lv(dec.mail.top) && opt(dec.mail.prev_top) && [null, "raised", "changed", "ended"].includes(dec.mail.kind)));
 };
 

@@ -1,20 +1,17 @@
 // How the alert is decided (D-43): today's run day by day, every rule that raised or lowered a
 // day's level, and whether the run sends an alert mail. Spec: EWS
 // docs/superpowers/specs/2026-11-20-alert-decision-page-design.md; look: its mock-up.
-import { ORDER, rank, t, esc, num, deg, day, now, level, badge, start, footer, param } from "./app.js";
+import { ORDER, rank, t, esc, num, deg, day, level, badge, start, footer, param, dayNamer, forecastLead } from "./app.js";
 
-let D, DEC, city, TODAY, sel = 0, timer = null;
+let D, DEC, city, dayName, shortName, sel = 0, timer = null;
 const $ = s => document.querySelector(s);
 const COLOR = l => `var(--alert-${l})`;
 const pct = x => num((x || 0) * 100);
-const ahead = d => Math.round((Date.parse(d.date) - Date.parse(TODAY)) / 864e5);
-const dayName = d => (ahead(d) === 0 ? t("day.today") : ahead(d) === 1 ? t("day.tomorrow") : day(d.date, { weekday: "long" }));
-const shortName = d => (ahead(d) === 0 || ahead(d) === 1 ? dayName(d) : day(d.date, { weekday: "short", day: "numeric" }));
 const up = s => rank(s.level) > rank(s.from);
 
 start((c, doc) => {
   city = c; D = doc; DEC = doc.decision;
-  TODAY = new Intl.DateTimeFormat("en-CA", { timeZone: D.timezone }).format(now());
+  ({ dayName, shortName } = dayNamer(D.timezone));
   document.title = t("title.alert", { city: t(`city.${city}.name`) });
   $("#eyebrow").textContent = t("alert.eyebrow", { place: t(`city.${city}.place`) });
   footer(city);
@@ -22,8 +19,8 @@ start((c, doc) => {
   $("#introtext").textContent = t(DEC.chain === "machine" ? "alert.intro.machine" : "alert.intro.bands");
   const n = Number(param("day"));
   sel = Number.isInteger(n) && n >= 1 && n <= D.days.length ? n - 1 : 0;
-  $("#prev").onclick = () => { stop(); select(sel - 1); };
-  $("#next").onclick = () => { stop(); select(sel + 1); };
+  $("#prev").onclick = () => { stop(); select(sel - 1, true); };
+  $("#next").onclick = () => { stop(); select(sel + 1, true); };
   $("#play").onclick = play;
   render();
 });
@@ -42,39 +39,31 @@ function steps(i) {
 const moves = i => steps(i).filter(s => s.changed);
 
 function text(s, i) {
-  const d = D.days[i], HI = D.rule.quantities[0] === "hi", thr = q => d.thresholds[q] || {};
-  const danger = level("orange"), top = level("red");
+  const danger = level("orange"), top = level("red"), l = s.level === "green" ? D.rule.levels[0] : s.level;   // No warning: the first level
   switch (s.rule) {
-    case "forecasts": {
-      const lv = D.rule.levels, l = s.level === "green" ? lv[0] : s.level, next = lv[lv.indexOf(l) + 1];
-      const cond = x => (HI ? t("detail.cond.hi", { v: deg(thr("hi")[x]) })
-        : t("detail.cond.dn", { day: deg(thr("tmax")[x], 1), night: deg(thr("tmin")[x], 1) }));
-      const share = num(D.rule.share * 100), sh = s.shares || {};
-      return s.level === "green" ? t(pct(sh[lv[0]]) === "0" ? "detail.lead.zero" : "detail.lead.none", { pct: pct(sh[lv[0]]), level: level(lv[0]), cond: cond(lv[0]), share })
-        : t("detail.lead.level", { pct: pct(sh[l]), level: level(l), cond: cond(l), share })
-          + (next ? ` ${t("detail.lead.next", { pct: pct(sh[next]), level: level(next) })}` : "");
-    }
+    case "forecasts":
+      return forecastLead({ ...D.days[i], level: s.level }, s.shares || {}, D.rule);
     case "persist":
-      return s.moved ? t("rule.persist.moved", { n: num(s.moved), min: danger, days: num(s.days), pct: pct((s.shares || {})[s.level]), level: level(s.level) })
+      return s.moved ? t("rule.persist.moved", { n: num(s.moved), min: danger, days: num(s.days), pct: pct((s.shares || {})[l]), level: level(l) })
         : t("rule.persist.none", { min: danger, days: num(s.days) });
     case "early":
       return s.moved ? t("rule.early.moved", { n: num(s.moved) }) : t("rule.early.none");
     case "night": {
       const r = s.night_rule || {};
-      let out = s.moved ? t(r.kind === "percentile" ? "rule.night.moved.pct" : "rule.night.moved.abs",
-        { n: num(s.moved), to: danger, top, v: deg(r.value ?? 0, 1), p: num(100 - (r.p || 90)) }) : t("rule.night.none");
-      if (s.moved && r.kind === "percentile" && r.value != null) out += ` ${t("rule.night.value", { v: deg(r.value, 1) })}`;
+      let out = s.moved ? t(r.kind === "percentile" && r.p != null ? "rule.night.moved.pct" : "rule.night.moved.abs",
+        { n: num(s.moved), to: danger, top, p: num(100 - r.p) }) : t("rule.night.none");
+      if (s.moved && r.value != null) out += ` ${t("rule.night.value", { v: deg(r.value, 1) })}`;
       if (s.moved && s.night_p50 != null) out += ` ${t("rule.night.near", { near: deg(s.night_p50) })}`;
       if (s.unknown) out += ` ${t("rule.night.unknown", { n: num(s.unknown) })}`;
       return out;
     }
     case "families":
-      return s.changed ? t("rule.families.held", { level: level(s.from), n: num(s.needed), to: level(s.level) })
+      return s.changed ? t("rule.families.held", { level: level(s.from), n: num(s.needed), share: num(D.rule.share * 100), to: level(s.level) })
         : rank(s.level) >= rank(s.tier) ? t("rule.families.ok") : t("rule.families.below", { tier: level(s.tier) });
     case "agree":
       if (!s.applies) return t("rule.agree.off");
       if (s.changed) return t(s.prev ? "rule.agree.held" : "rule.agree.new", { min: danger, prev: s.prev ? level(s.prev) : "", to: level(s.level) });
-      return rank(s.level) >= rank("orange") ? t("rule.agree.ok", { prev: level(s.prev) }) : t("rule.agree.below", { min: danger });
+      return rank(s.level) >= rank("orange") ? t("rule.agree.ok", { min: danger }) : t("rule.agree.below", { min: danger });
     case "dip":
       if (!s.applies) return t("rule.dip.off");
       return s.changed ? t("rule.dip.held", { yday: level(s.yesterday), from: level(s.from), tomorrow: level(s.tomorrow), to: level(s.level) })
@@ -89,10 +78,12 @@ function text(s, i) {
 function sentence(i) {
   const d = D.days[i], mv = moves(i), first = steps(i)[0];
   const head = `<b>${dayName(d)}, ${day(d.date, { day: "numeric", month: "long" })}.</b> `;
-  const start = first.from ? `${t("alert.s.start", { level: level(first.from) })} ` : "";
-  if (!mv.length) return head + start + t("alert.s.nochange", { level: level(first.level) });
+  const from = first.from ? `${t("alert.s.start", { level: level(first.from) })} ` : "";
+  if (!mv.length) return head + from + t("alert.s.nochange", { level: level(first.level) });
+  // Unknown day before: the forecasts step cannot be a change, so the sentence opens with what it says.
+  const open = from || `${t("alert.s.forecasts", { level: level(first.level) })} `;
   const say = m => t(m.rule === "forecasts" ? (up(m) ? "alert.s.forecasts.up" : "alert.s.forecasts.down") : `alert.s.${m.rule}`, { level: level(m.level) });
-  return head + start + mv.map(m => `<span class="mv">${up(m) ? "▲" : "▼"}${m.n}</span> ${say(m)}`).join(" ")
+  return head + open + mv.map(m => `<span class="mv">${up(m) ? "▲" : "▼"}${m.n}</span> ${say(m)}`).join(" ")
     + ` ${t("alert.s.end", { level: level(d.level) })}`;
 }
 
@@ -129,7 +120,7 @@ function track() {
   const sc = meas.length + sel;
   s += `<rect x="${X(sc) + 2}" y="${T - 26}" width="${CW(sc) - 4}" height="${H - T - B + 48}" rx="6" fill="var(--cream-100)" stroke="var(--cream-120)"/>`;
   meas.forEach((m, c) => {
-    s += `<rect x="${X(c) + CW(c) / 2 - 7}" y="${Y(m.level) - 7}" width="14" height="14" rx="2" fill="${COLOR(m.level)}" stroke="var(--white)" stroke-width="2"/>`;
+    if (m.level) s += `<rect x="${X(c) + CW(c) / 2 - 7}" y="${Y(m.level) - 7}" width="14" height="14" rx="2" fill="${COLOR(m.level)}" stroke="var(--white)" stroke-width="2"/>`;
     s += `<text x="${X(c) + CW(c) / 2}" y="${H - B + 22}" font-size="11" text-anchor="middle" fill="var(--grey-100)">${day(m.date, { day: "numeric", month: "short" })}</text>`;
     s += `<text x="${X(c) + CW(c) / 2}" y="${H - B + 36}" font-size="10" text-anchor="middle" fill="var(--grey-100)">${t("alert.measured")}</text>`;
   });
@@ -161,9 +152,9 @@ function track() {
 }
 
 function chips() {
-  const meas = (DEC.measured || []).map(m => `<div class="dchip measured lv-${esc(m.level)}"><small>${day(m.date, { weekday: "short", day: "numeric", month: "short" })}</small><b>${level(m.level)}</b><small>${t("alert.measured")}</small></div>`).join("");
+  const meas = (DEC.measured || []).map(m => `<div class="dchip measured${m.level ? ` lv-${esc(m.level)}` : ""}"><small>${day(m.date, { weekday: "short", day: "numeric", month: "short" })}</small><b>${m.level ? level(m.level) : t("alert.nomeasure")}</b><small>${t("alert.measured")}</small></div>`).join("");
   $("#days").innerHTML = meas + D.days.map((d, i) => `<button class="dchip lv-${esc(d.level)}" type="button" data-i="${i}" aria-pressed="${i === sel}"><small>${day(d.date, { weekday: "short", day: "numeric", month: "short" })}</small><b>${level(d.level)}</b><small>${t("alert.dayno", { n: num(d.lead + 1) })}</small></button>`).join("");
-  $("#days").onclick = e => { const b = e.target.closest("button[data-i]"); if (b) { stop(); select(+b.dataset.i); } };
+  $("#days").onclick = e => { const b = e.target.closest("button[data-i]"); if (b) { stop(); select(+b.dataset.i, true); } };
   const d = D.days[sel];
   $("#dayhint").textContent = t("alert.dayof", { name: dayName(d), date: day(d.date, { day: "numeric", month: "long" }), n: num(d.lead + 1) });
 }
@@ -176,14 +167,30 @@ function mail() {
     + (m.kind ? t(`mail.${m.kind}`) : t("mail.none", { min: level(D.rule.alert_min_level) }));
 }
 
+// Scroll a row sideways until the element shows (the day chips and the track scroll on a phone), never the page.
+function reveal(box, el) {
+  const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+  if (r.left < b.left) box.scrollLeft += r.left - b.left;
+  else if (r.right > b.right) box.scrollLeft += r.right - b.right;
+}
+
 function render() {
   chips(); track();
   $("#sentence").innerHTML = sentence(sel);
   $("#ladder").innerHTML = ladder(sel);
   mail();
+  $("#prev").disabled = sel === 0;
+  $("#next").disabled = sel === D.days.length - 1;
+  reveal($("#days"), $(`#days button[data-i="${sel}"]`));
+  reveal($("#track"), $(`#track .hit[data-i="${sel}"]`));
 }
 
-function select(i) { sel = Math.max(0, Math.min(D.days.length - 1, i)); render(); }
+// focus: a day picked from the keyboard or with Previous and Next keeps the focus on the chips, which render() rewrites.
+function select(i, focus) {
+  sel = Math.max(0, Math.min(D.days.length - 1, i));
+  render();
+  if (focus) $(`#days button[data-i="${sel}"]`).focus({ preventScroll: true });
+}
 function stop() { clearInterval(timer); timer = null; $("#play").textContent = t("alert.play"); }
 function play() {
   if (timer) { stop(); return; }

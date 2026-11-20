@@ -1,21 +1,17 @@
 // Forecast page (spec § Pages, Forecast): headline, official warning, seven-day strip, day detail,
 // week chart, yesterday, the alert request and the what-to-do placeholder.
-import { CITIES, CONTACT, rank, t, esc, safeUrl, num, deg, day, time, now, level, badge, tip, start, footer, query } from "./app.js";
+import { CITIES, CONTACT, rank, t, esc, safeUrl, num, deg, day, time, now, level, badge, tip, start, footer, query, dayNamer, forecastLead } from "./app.js";
 
-let D, city, HI, W, TODAY;
+let D, city, HI, W, ahead, dayName, shortName;
 const $ = s => document.querySelector(s);
 const main = d => d[D.rule.quantities[0]];
 const thr = (d, q) => d.thresholds[q] || {};
 const share = () => num(D.rule.share * 100);
-// Today and Tomorrow from the viewer's clock in the city, not from the file's lead: a file read late in the day is a day behind.
-const ahead = d => Math.round((Date.parse(d.date) - Date.parse(TODAY)) / 864e5);
-const dayName = d => (ahead(d) === 0 ? t("day.today") : ahead(d) === 1 ? t("day.tomorrow") : day(d.date, { weekday: "long" }));
-const shortName = d => (ahead(d) === 0 || ahead(d) === 1 ? dayName(d) : day(d.date, { weekday: "short", day: "numeric" }));
 const high = () => D.days.filter(d => rank(d.level) >= rank(D.rule.alert_min_level));
 
 start((c, doc) => {
   city = c; D = doc; HI = D.rule.quantities[0] === "hi"; W = Math.min(D.rule.alert_window_days, D.days.length);
-  TODAY = new Intl.DateTimeFormat("en-CA", { timeZone: D.timezone }).format(now());
+  ({ ahead, dayName, shortName } = dayNamer(D.timezone));
   document.title = t("title.forecast", { city: t(`city.${city}.name`) });
   intro(); official(); strip();
   const first = high()[0];
@@ -110,19 +106,12 @@ function scatter(d) {
 function show(i) {
   const d = D.days[i], lv = D.rule.levels;
   document.querySelectorAll("#strip .day").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.i === i)));
-  const lvl = d.level === "green" ? lv[0] : d.level, pct = num((d.chance[lvl] ?? 0) * 100);
-  const next = lv[lv.indexOf(lvl) + 1];
-  const cond = l => (HI ? t("detail.cond.hi", { v: deg(thr(d, "hi")[l]) })
-    : t("detail.cond.dn", { day: deg(thr(d, "tmax")[l], 1), night: deg(thr(d, "tmin")[l], 1) }));
-  const lead = d.level === "green" ? t(pct === "0" ? "detail.lead.zero" : "detail.lead.none", { pct, level: level(lv[0]), cond: cond(lv[0]), share: share() })
-    : t("detail.lead.level", { pct, level: level(lvl), cond: cond(lvl), share: share() })
-      + (next ? ` ${t("detail.lead.next", { pct: num((d.chance[next] ?? 0) * 100), level: level(next) })}` : "");
   const rows = HI ? [["hi", "row.hi", "tip.hi"], ["tmax", "row.tmax.air", ""], ["tmin", "row.tmin", "tip.night"]]
     : [["tmax", "row.tmax.day", "tip.tmax"], ["tmin", "row.tmin", "tip.night"]];
   $("#detail").innerHTML = `
     <h2>${dayName(d)}, ${day(d.date, { day: "numeric", month: "long" })} ${badge(d.level)}
       ${d.lead >= W ? `<span class="badge muted">${t("detail.later", { n: d.lead + 1 })}</span>` : ""}</h2>
-    <p class="lead">${lead}</p>
+    <p class="lead">${forecastLead(d, d.chance, D.rule)}</p>
     ${D.decision ? `<p class="why"><a href="alert.html${query(city)}&day=${i + 1}">${t("detail.why", { level: level(d.level) })}</a></p>` : ""}
     <div class="dgrid"><div>
       ${HI ? (d.hi?.members ? `<div class="h3">${t("detail.dots.title", { n: d.hi.members.filter(v => v != null).length })} ${tip("tip.dots")}</div>${dots(d)}` : "")

@@ -227,6 +227,8 @@ def live(folder: Path) -> int:
             size[kind] += n
             size["all"] += n
         statuses = {r.status for r in got}
+        if pg.is_visible("#maperr"):
+            errors.append("#maperr visible: a layer stayed blank")
         ctx.close()
         return seconds, size, statuses, errors
 
@@ -253,6 +255,9 @@ def live(folder: Path) -> int:
                 first = next(iter(exp["values"]))
                 miss = missing_numbers(pg.inner_text("#card"), exp["values"][first])
                 check(not miss, f"{city}: live, the readout at {exp['lat']}, {exp['lon']} equals --publish's numbers {miss}")
+                pg.locator("#rail input[value^=type]").first.check()
+                pg.wait_for_function(DRAWN, timeout=30000)
+                check(not pg.is_visible("#maperr"), f"{city}: live, a type layer draws and #maperr stays hidden")
         b.close()
     print(f"\n{len(failures)} failure(s)")
     return 1 if failures else 0

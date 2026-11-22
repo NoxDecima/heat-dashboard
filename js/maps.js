@@ -77,7 +77,7 @@ const osm = h => h.includes("OpenStreetMap contributors") ? h.replace("OpenStree
 const CogLayer = L.GridLayer.extend({
   initialize(url, options) {
     L.setOptions(this, options);
-    this._images = GeoTIFF.fromUrl(url, { blockSize: this.options.smooth ? 16384 : 65536 }).then(async tiff => {
+    this._images = GeoTIFF.fromUrl(url, { allowFullFile: true, blockSize: this.options.smooth ? 16384 : 65536 }).then(async tiff => {
       const first = await tiff.getImage(0), [ox, oy] = first.getOrigin(), out = [];
       for (let i = 0; i < await tiff.getImageCount(); i++) {
         const image = await tiff.getImage(i);
@@ -292,7 +292,7 @@ function satellite(ll) {
 const pin = L.circleMarker([0, 0], { radius: 7, weight: 3, color: INK, fillColor: PIN, fillOpacity: 1, interactive: false });
 
 async function pixel(s, ll) {
-  values[s.key] ||= GeoTIFF.fromUrl(mapsBase(city) + s.values, { blockSize: 65536 }).then(f => f.getImage())
+  values[s.key] ||= GeoTIFF.fromUrl(mapsBase(city) + s.values, { allowFullFile: true, blockSize: 65536 }).then(f => f.getImage())
     .catch(e => { delete values[s.key]; throw e; });
   const img = await values[s.key], [ox, oy] = img.getOrigin(), [rx, ry] = img.getResolution();
   const p = L.CRS.EPSG3857.project(ll), col = Math.floor((p.x - ox) / rx), row = Math.floor((p.y - oy) / ry);

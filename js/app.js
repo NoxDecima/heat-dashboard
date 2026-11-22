@@ -124,7 +124,7 @@ async function loadCity(city) {
 function header(city) {
   const page = location.pathname.split("/").pop().replace(".html", "") || "index";
   const nav = [["index", "nav.forecast"], ["history", "nav.history"], ["alert", "nav.alert"], ["maps", "nav.maps"], ["docs", "nav.docs"]]
-    .map(([p, k]) => `<a href="${p}.html${query(city)}" class="${p === page ? "on" : ""}">${t(k)}</a>`).join("");
+    .map(([p, k]) => `<a href="${p}.html${query(city)}" class="${p === page ? "on" : ""}"${p === page ? ' aria-current="page"' : ""}>${t(k)}</a>`).join("");
   const opts = (city ? "" : `<option value="">${t("nav.choose")}</option>`) + Object.keys(CITIES)
     .map(c => `<option value="${c}"${c === city ? " selected" : ""}>${t(`city.${c}.name`)}</option>`).join("");
   const langs = LANGS.map(l => (l === lang ? `<b>${l.toUpperCase()}</b>` : `<a href="${langHref(l)}">${l.toUpperCase()}</a>`)).join(" · ");

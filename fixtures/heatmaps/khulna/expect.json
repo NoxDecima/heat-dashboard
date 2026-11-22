@@ -1,0 +1,16 @@
+{
+ "lat": 22.837648,
+ "lon": 89.532821,
+ "values": {
+  "hot": {
+   "day_median": 37.4,
+   "day_count": 55.0,
+   "day_p25": 35.3,
+   "day_p75": 40.9,
+   "relative": -1.6,
+   "code": 6.0,
+   "dem": 8.0,
+   "inside": 1.0
+  }
+ }
+}

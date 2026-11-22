@@ -1,6 +1,6 @@
 // Shared plumbing for every page: language strings, data loading with a schema check, escaping,
 // number and date formatting, header and footer. Every string from the data file goes through esc().
-import { CITIES, CONTACT, DATA_BASE } from "./config.js";
+import { CITIES, CONTACT, DATA_BASE, MAPS_BASE } from "./config.js";
 export { CITIES, CONTACT };
 
 export const SCHEMA = 1;
@@ -10,8 +10,8 @@ export const LANGS = ["en"];                       // add "es" with i18n/es.json
 const LOCALE = { en: "en-GB", es: "es-PE" };       // date and number formats per language
 
 const params = new URLSearchParams(location.search);
-const LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);   // ?data= and ?now= work on a local server only
-export const param = k => (LOCAL || !["data", "now"].includes(k) ? params.get(k) : null);
+const LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);   // ?data=, ?now=, ?webp= and ?at= work on a local server only
+export const param = k => (LOCAL || !["data", "now", "webp", "at"].includes(k) ? params.get(k) : null);
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked: the choice lasts one page */ } },
@@ -55,13 +55,15 @@ export const forecastLead = (d, shares, rule) => {
     : t("detail.lead.level", v) + (next ? ` ${t("detail.lead.next", { pct: pct(next), level: level(next) })}` : "");
 };
 
-// ?data= may point at a local fixtures folder (development, smoke test), nothing else.
-const base = /^fixtures\/[\w/]*$/.test(param("data") || "") ? param("data") : DATA_BASE;
-export const dataUrl = city => `${base}${city}.json`;
+// ?data= may point at a local fixtures folder (development, smoke test), nothing else; the heat maps
+// then come from its heatmaps/ folder.
+const fixtures = /^fixtures\/[\w/]*$/.test(param("data") || "") ? param("data") : null;
+export const dataUrl = city => `${fixtures || DATA_BASE}${city}.json`;
+export const mapsBase = city => `${fixtures ? `${fixtures}heatmaps/` : MAPS_BASE}${city}/`;
 export const query = city => {
   const q = new URLSearchParams();
   if (city) q.set("city", city);
-  for (const k of ["lang", "data", "now"]) if (param(k)) q.set(k, param(k));
+  for (const k of ["lang", "data", "now", "webp"]) if (param(k)) q.set(k, param(k));
   const s = q.toString();
   return s ? `?${s}` : "";
 };
@@ -121,8 +123,8 @@ async function loadCity(city) {
 
 function header(city) {
   const page = location.pathname.split("/").pop().replace(".html", "") || "index";
-  const nav = [["index", "nav.forecast"], ["history", "nav.history"], ["alert", "nav.alert"], ["docs", "nav.docs"]]
-    .map(([p, k]) => `<a href="${p}.html${query(city)}" class="${p === page ? "on" : ""}">${t(k)}</a>`).join("");
+  const nav = [["index", "nav.forecast"], ["history", "nav.history"], ["alert", "nav.alert"], ["maps", "nav.maps"], ["docs", "nav.docs"]]
+    .map(([p, k]) => `<a href="${p}.html${query(city)}" class="${p === page ? "on" : ""}"${p === page ? ' aria-current="page"' : ""}>${t(k)}</a>`).join("");
   const opts = (city ? "" : `<option value="">${t("nav.choose")}</option>`) + Object.keys(CITIES)
     .map(c => `<option value="${c}"${c === city ? " selected" : ""}>${t(`city.${c}.name`)}</option>`).join("");
   const langs = LANGS.map(l => (l === lang ? `<b>${l.toUpperCase()}</b>` : `<a href="${langHref(l)}">${l.toUpperCase()}</a>`)).join(" · ");
@@ -130,6 +132,9 @@ function header(city) {
     <img class="logo" src="assets/meteory-logo.svg" alt="Meteory"><nav class="nav">${nav}</nav>
     <div class="tools"><select id="city" aria-label="${t("nav.city")}">${opts}</select><span class="lang">${langs}</span></div></div>`;
   document.getElementById("city").addEventListener("change", e => { location.search = query(e.target.value); });
+  // On a phone the tab row scrolls sideways (style.css): bring the current tab to the middle.
+  const row = document.querySelector(".nav"), on = row.querySelector(".on");
+  if (on) row.scrollLeft += on.getBoundingClientRect().left - row.getBoundingClientRect().left - (row.clientWidth - on.offsetWidth) / 2;
 }
 
 export function footer(city) {
@@ -139,7 +144,7 @@ export function footer(city) {
     <div class="links"><a href="docs.html${query(city)}">${t("nav.docs")}</a>${data}</div></div>`;
 }
 
-function picker() {
+export function picker() {
   document.querySelector("main").innerHTML = `<section class="intro"><h1>${t("picker.title")}</h1><div class="sub">${t("picker.sub")}</div></section>
     <nav class="picker">${Object.keys(CITIES).map(c => `<a class="panel" href="${query(c)}">${t(`city.${c}.place`)}</a>`).join("")}</nav>`;
   footer(null);

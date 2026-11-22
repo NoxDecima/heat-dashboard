@@ -255,7 +255,10 @@ def live(folder: Path) -> int:
                 first = next(iter(exp["values"]))
                 miss = missing_numbers(pg.inner_text("#card"), exp["values"][first])
                 check(not miss, f"{city}: live, the readout at {exp['lat']}, {exp['lon']} equals --publish's numbers {miss}")
-                pg.locator("#rail input[value^=type]").first.check()
+                man = json.loads((folder / city / "manifest.json").read_text())
+                common = max((l for l in man["layers"] if l["id"].startswith("type")), key=lambda l: l["share"])["id"]
+                pg.locator(f"#rail input[value={common}]").check()   # a rare type may have no cell in this view
+                pg.wait_for_function(LOADED, timeout=30000)
                 pg.wait_for_function(DRAWN, timeout=30000)
                 check(not pg.is_visible("#maperr"), f"{city}: live, a type layer draws and #maperr stays hidden")
         b.close()

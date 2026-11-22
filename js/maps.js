@@ -16,6 +16,23 @@ const phone = matchMedia("(max-width: 820px)");
 let M, X, city, season, current = null, map, heat = null, outline, pinned = null, opacity = 100;
 const layers = {}, values = {};
 
+// Esri's imagery has holes at the deepest zooms (all of Kaolack at 18, parts of Lima): such a tile is drawn from
+// the part of the tile one or two zooms up that covers it, enlarged, instead of Esri's "not yet available" picture.
+const Sat = L.GridLayer.extend({
+  createTile(c, done) {
+    const tile = L.DomUtil.create("canvas");
+    tile.width = tile.height = 256;
+    const from = k => {
+      const img = new Image(), s = 256 >> k, m = (1 << k) - 1;
+      img.onload = () => { tile.getContext("2d").drawImage(img, (c.x & m) * s, (c.y & m) * s, s, s, 0, 0, 256, 256); done(null, tile); };
+      img.onerror = () => (k < 2 ? from(k + 1) : done(new Error("no imagery"), tile));
+      img.src = `${L.Util.template(ESRI, { z: c.z - k, x: c.x >> k, y: c.y >> k })}?blankTile=false`;
+    };
+    from(0);
+    return tile;
+  },
+});
+
 // --- the manifest: checked like the city files, before anything is drawn ---
 const KINDS = ["day", "relative", "night", "type"];
 const BANDS = ["day_median", "day_count", "day_p25", "day_p75", "relative", "night_median", "night_count", "code", "dem", "inside"];
@@ -149,7 +166,7 @@ function setup(webp) {
   map.fitBounds(home);
   map.setMinZoom(map.getBoundsZoom(home) - 1);
   layers.relief = cog(M.relief.file, { smooth: true, attribution: t("maps.attr.relief") });
-  layers.sat = L.tileLayer(ESRI, { maxNativeZoom: 18, maxZoom: 18, attribution: t("maps.attr.sat") });
+  layers.sat = new Sat({ maxNativeZoom: 18, maxZoom: 18, attribution: t("maps.attr.sat") });
   outline = L.geoJSON(M.outline, { style: { color: INK, weight: 2, fill: false }, interactive: false, attribution: osm(esc(X.credit)) });
   layers.lines = L.layerGroup([outline, L.geoJSON(M.river, { style: { color: RIVER, weight: 1.5 }, interactive: false })]).addTo(map);
   layers.station = M.station && L.circleMarker([M.station.lat, M.station.lon], { radius: 6, weight: 3, color: INK, fillColor: "#fff", fillOpacity: 1, interactive: false })

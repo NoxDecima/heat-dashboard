@@ -146,8 +146,9 @@ def heat_maps(b, base, check):
                 pg.keyboard.press("Enter")
                 pg.wait_for_selector(".leaflet-popup .sat", timeout=5000)
                 check(pg.locator(".leaflet-popup img").count() == 0, "lima: maps, a check popup shows no imagery")
-                pg.click(".leaflet-popup .sat")
-                pg.wait_for_selector(".leaflet-tile-loaded[src*='/tile/18/']", timeout=5000)
+                with pg.expect_request(lambda r: "World_Imagery/MapServer/tile/18/" in r.url, timeout=5000):
+                    pg.click(".leaflet-popup .sat")
+                pg.wait_for_selector(".leaflet-tile-pane canvas.leaflet-tile-loaded", timeout=5000)
                 check(pg.is_checked("#rail input[value=sat]") and pg.locator("#rail input[name=layer]:checked").count() == 0,
                       "lima: maps, Show on satellite: satellite at zoom 18, heat layer off")
                 check("Powered by Esri" in pg.inner_text(".leaflet-control-attribution"), "lima: maps, satellite attribution says Powered by Esri")

@@ -187,15 +187,15 @@ function rail() {
   const types = M.layers.filter(l => l.kind === "type").map(l => opt("radio", "layer", l.id, esc(typeName(l.code)),
     l.check ? t("maps.share.check", { share: share(l.share), a: num(l.check[0]), n: num(l.check[1]) }) : share(l.share), sel === l.id)).join("");
   const shown = what => what === "checks" ? map.hasLayer(layers.checks) : !!layers[what] && map.hasLayer(layers[what]);
-  $("#railbody").innerHTML = `<fieldset><legend>${t("maps.group.heat")}</legend>${seg}${heatOpts}</fieldset>
+  $("#railbody").innerHTML = `<fieldset><legend>${t("maps.group.heat")}</legend>${seg}${heatOpts}
+    <div class="opt op"><label for="opac">${t("maps.opacity")}</label><output id="opacv" for="opac">${opacity}%</output>
+        <input type="range" id="opac" min="0" max="100" step="5" value="${opacity}"></div></fieldset>
     <fieldset><legend>${t("maps.group.types")}</legend><div class="hint">${t("maps.group.types.hint")}</div>${types}</fieldset>
     <fieldset><legend>${t("maps.group.show")}</legend>${opt("checkbox", "show", "checks", t("maps.show.checks"), "✓ ✗", shown("checks"))}
       ${M.station ? opt("checkbox", "show", "station", t("maps.show.station", { station: esc(M.station.name) }), "", shown("station")) : ""}
       ${opt("checkbox", "show", "lines", t("maps.show.lines"), "", shown("lines"))}</fieldset>
     <fieldset><legend>${t("maps.group.base")}</legend>${opt("radio", "base", "relief", t("maps.base.relief"), t("maps.base.relief.mt"), true)}
-      ${opt("radio", "base", "sat", t("maps.base.sat"), t("maps.base.sat.mt"))}
-      <div class="opt op"><label for="opac">${t("maps.opacity")}</label><output id="opacv" for="opac">${opacity}%</output>
-        <input type="range" id="opac" min="0" max="100" step="5" value="${opacity}"></div></fieldset>`;
+      ${opt("radio", "base", "sat", t("maps.base.sat"), t("maps.base.sat.mt"))}</fieldset>`;
   map.getPane("heat").style.opacity = opacity / 100;
   $("#railbody").onchange = e => {
     const i = e.target;
@@ -205,8 +205,10 @@ function rail() {
     else if (i.checked) layers[i.value].addTo(map);
     else map.removeLayer(layers[i.value]);
   };
+  $("#opac").style.setProperty("--f", `${opacity}%`);
   $("#opac").oninput = e => {
     opacity = +e.target.value;
+    e.target.style.setProperty("--f", `${opacity}%`);
     map.getPane("heat").style.opacity = opacity / 100;
     $("#opacv").textContent = `${opacity}%`;
   };
@@ -386,7 +388,41 @@ function railShown(show) {         // desktop: « Hide gives the map the full wi
   (show ? $("#hide") : $("#layersbtn")).focus();
 }
 
+const ICON = d => `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICONS = {
+  home: ICON("M2 9 9 3l7 6M4 8v7h3.5v-4h3v4H14V8"),
+  enter: ICON("M2 6.5V2h4.5M11.5 2H16v4.5M16 11.5V16h-4.5M6.5 16H2v-4.5"),
+  leave: ICON("M6.5 2v4.5H2M16 6.5h-4.5V2M11.5 16v-4.5H16M2 11.5h4.5V16"),
+};
+
+// full screen: the whole .mgrid (rail, map, readout). Where the browser cannot (iPhone Safari) the class `full` does the same.
+let fullWas = false;
+function fullscreen() {
+  const g = $(".mgrid"), b = $("#zfull");
+  const on = () => document.fullscreenEnabled ? document.fullscreenElement === g : g.classList.contains("full");
+  const sync = () => {
+    const o = on(), k = o ? "maps.full.exit" : "maps.full";
+    b.setAttribute("aria-pressed", String(o));
+    b.setAttribute("aria-label", t(k));
+    b.title = t(k);
+    b.innerHTML = o ? ICONS.leave : ICONS.enter;
+    map.invalidateSize();
+    if (!o && fullWas) b.focus();
+    fullWas = o;
+  };
+  b.onclick = () => {
+    if (!document.fullscreenEnabled) { g.classList.toggle("full"); sync(); }
+    else if (on()) document.exitFullscreen();
+    else g.requestFullscreen().catch(() => {});
+  };
+  document.addEventListener("fullscreenchange", sync);
+  sync();
+  return () => { if (!document.fullscreenEnabled && on()) { g.classList.remove("full"); sync(); return true; } };
+}
+
 function controls(home) {
+  const leaveFull = fullscreen();
+  $("#zhome").innerHTML = ICONS.home;
   for (const [id, key, go] of [["zin", "maps.zoomin", () => map.zoomIn()], ["zout", "maps.zoomout", () => map.zoomOut()],
     ["zhome", "maps.home", () => map.fitBounds(home)]]) {
     $(`#${id}`).setAttribute("aria-label", t(key));
@@ -411,5 +447,6 @@ function controls(home) {
     if (map._popup && map.hasLayer(map._popup)) return void map.closePopup();
     if (document.body.classList.contains("sheet")) sheet(false);
     else if (pinned) closeCard();
+    else leaveFull();
   });
 }

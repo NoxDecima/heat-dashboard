@@ -155,6 +155,18 @@ def heat_maps(b, base, check):
                     pg.fill("#opac", str(v))
                     op = pg.evaluate("getComputedStyle(document.querySelector('.leaflet-heat-pane')).opacity")
                     check(op == str(v // 100) and pg.inner_text("#opacv") == f"{v}%", f"lima: maps, opacity slider at {v}: heat pane {op}, text {pg.inner_text('#opacv')}")
+            if city == "lima":
+                with guard(check, "lima full screen", b):
+                    vh = pg.viewport_size["height"]
+                    isfull = lambda: pg.evaluate("document.fullscreenElement?.matches('.mgrid') || document.querySelector('.mgrid').classList.contains('full')")
+                    pg.click("#zfull")
+                    pg.wait_for_function("document.querySelector('#zfull').getAttribute('aria-pressed') === 'true'", timeout=5000)
+                    pg.wait_for_timeout(300)
+                    check(isfull() and pg.is_visible("#rail") and pg.locator("#map").bounding_box()["height"] >= 0.9 * vh,
+                          f"lima: maps, full screen: the map fills the height, the rail stays, pressed")
+                    pg.click("#zfull")
+                    pg.wait_for_function("document.querySelector('#zfull').getAttribute('aria-pressed') === 'false'", timeout=5000)
+                    check(not isfull() and pg.locator("#map").bounding_box()["height"] < 0.9 * vh, "lima: maps, leaving full screen restores the page")
             check(not errors, f"{city}: maps, no console errors {errors}")
     with guard(check, "maps error states", b):
         pg, errors = page(b)
@@ -186,6 +198,16 @@ def heat_maps(b, base, check):
         m.keyboard.press("Escape")
         check(not m.is_visible("#rail") and m.evaluate("document.activeElement.id") == "layersbtn",
               "phone: maps, Escape closes the sheet and the focus returns to Layers")
+        m.click("#zfull")
+        m.wait_for_function("document.querySelector('#zfull').getAttribute('aria-pressed') === 'true'", timeout=5000)
+        isfull = lambda: m.evaluate("!!document.fullscreenElement || document.querySelector('.mgrid').classList.contains('full')")
+        m.click("#layersbtn")
+        check(m.is_visible("#rail") and m.is_visible("#backdrop"), "phone: maps, full screen, Layers opens the sheet inside it")
+        m.keyboard.press("Escape")
+        check(not m.is_visible("#rail") and isfull(), "phone: maps, full screen, Escape closes the sheet and the page stays in full screen")
+        m.click("#zfull")
+        m.wait_for_function("document.querySelector('#zfull').getAttribute('aria-pressed') === 'false'", timeout=5000)
+        check(not isfull(), "phone: maps, the button leaves full screen")
 
 
 def live(folder: Path) -> int:

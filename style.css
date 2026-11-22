@@ -222,10 +222,16 @@ body.railoff .rail { display:none; }
 .rail .season { display:grid; grid-template-columns:1fr 1fr; border-radius:10px; margin:2px 0 6px; width:100%; }
 .rail .season button { min-height:36px; padding:4px 8px; line-height:1.3; }
 .opt { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:8px; align-items:center; min-height:28px; padding:0 6px; margin:0 -6px; border-radius:6px; font-size:13px; color:var(--blue-100); cursor:pointer; }
-.opt input { margin:0; accent-color:var(--blue-100); width:15px; height:15px; }
+.opt input:not([type=range]) { margin:0; accent-color:var(--blue-100); width:15px; height:15px; }
 .opt .mt { font-size:11px; color:var(--grey-100); white-space:nowrap; }
-.opt.op { grid-template-columns:1fr auto; grid-template-areas:"l v" "r r"; row-gap:0; cursor:default; padding-bottom:4px; }
-.opt.op label { grid-area:l; } .opt.op output { grid-area:v; font-size:11px; color:var(--grey-100); } .opt.op input { grid-area:r; width:100%; height:20px; }
+.opt.op { grid-template-columns:1fr auto; grid-template-areas:"l v" "r r"; row-gap:2px; cursor:default; padding-bottom:4px; margin-top:2px; }
+.opt.op label { grid-area:l; } .opt.op output { grid-area:v; font-size:11px; color:var(--grey-100); } .opt.op input { grid-area:r; width:100%; height:20px; margin:0; padding:0; background:none; }
+#opac { -webkit-appearance:none; appearance:none; --f:100%; }
+#opac::-webkit-slider-runnable-track { height:4px; border-radius:2px; background:linear-gradient(to right,var(--blue-100) var(--f),var(--cream-120) var(--f)); }
+#opac::-moz-range-track { height:4px; border-radius:2px; background:linear-gradient(to right,var(--blue-100) var(--f),var(--cream-120) var(--f)); }
+#opac::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; margin-top:-6px; border-radius:50%; background:var(--blue-100); border:2px solid var(--white); box-sizing:border-box; box-shadow:0 0 0 1px var(--blue-100); }
+#opac::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--blue-100); border:2px solid var(--white); box-sizing:border-box; box-shadow:0 0 0 1px var(--blue-100); }
+#opac:focus-visible { outline:2px solid var(--blue-60); outline-offset:3px; border-radius:4px; }
 .opt:has(input[type=radio]:checked) { background:var(--cream-100); font-weight:600; }
 .mapwrap { position:relative; min-width:0; }
 .mapbox { position:relative; }
@@ -239,6 +245,7 @@ body.railoff .rail { display:none; }
 .ctl { position:absolute; top:12px; right:12px; z-index:1000; display:grid; background:var(--white); border-radius:8px; box-shadow:0 1px 5px rgba(13,27,45,.3); overflow:hidden; }
 .ctl button { width:40px; height:40px; border:0; border-bottom:1px solid var(--cream-120); background:var(--white); color:var(--blue-100); font:600 18px var(--font); cursor:pointer; padding:0; }
 .ctl button:last-child { border-bottom:0; font-size:15px; }
+.ctl button svg { display:block; margin:auto; }
 .float { position:absolute; z-index:1000; background:var(--white); border-radius:8px; box-shadow:0 1px 6px rgba(13,27,45,.3); padding:10px 12px; font-size:12px; color:var(--blue-60); line-height:1.45; }
 .legend4 { left:16px; bottom:28px; width:300px; }
 .legend4 .ph { display:none; }
@@ -305,4 +312,15 @@ dl.about dd { margin:0; color:var(--blue-60); }
   body.sheet .rail { display:block; }
   body.sheet .backdrop { display:block; position:fixed; inset:0; background:rgba(13,27,45,.35); z-index:1500; }
   .ctl button { width:44px; height:44px; }
+}
+/* full screen: the whole .mgrid (the browser's own, or the class `full` where it cannot) */
+.mgrid:fullscreen, .mgrid.full { background:var(--cream-100); width:100%; height:100%; grid-template-rows:minmax(0,1fr); }
+.mgrid.full { position:fixed; inset:0; z-index:3000; }
+.mgrid:fullscreen .rail, .mgrid.full .rail { height:100%; }
+.mgrid:fullscreen .mapwrap, .mgrid.full .mapwrap, .mgrid:fullscreen .mapbox, .mgrid.full .mapbox { height:100%; }
+.mgrid:fullscreen .map, .mgrid.full .map { height:100%; border-radius:0; }
+@media (max-width: 820px) {
+  .mgrid:fullscreen .map, .mgrid.full .map { border:0; }
+  .mgrid:fullscreen #card, .mgrid.full #card { position:absolute; left:0; right:0; bottom:0; z-index:1000; max-height:50%; overflow:auto; box-shadow:0 -2px 12px rgba(13,27,45,.25); }
+  .mgrid:fullscreen .rail, .mgrid.full .rail { height:auto; }
 }

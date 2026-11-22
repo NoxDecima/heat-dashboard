@@ -316,6 +316,8 @@
   "maps.zoomin": "Zoom in",
   "maps.zoomout": "Zoom out",
   "maps.home": "Show the whole area",
+  "maps.full": "Full screen",
+  "maps.full.exit": "Leave full screen",
   "maps.season": "Season",
   "maps.group.heat": "Surface heat",
   "maps.group.types": "Neighbourhood types",

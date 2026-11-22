@@ -22,6 +22,14 @@ h1,h2,h3 { color:var(--blue-100); margin:0; line-height:1.2; }
 .nav { display:flex; gap:18px; font-size:13px; font-weight:500; }
 .nav a { text-decoration:none; color:var(--grey-100); padding:4px 0; border-bottom:2px solid transparent; }
 .nav a.on { color:var(--blue-100); border-color:var(--green-100); }
+/* A phone: the tab row is one line that scrolls sideways, its ends faded (D-46, option A). */
+@media (max-width:600px) {
+  .top .nav { width:calc(100% + 40px); margin:0 -20px; padding:0 16px; overflow-x:auto; white-space:nowrap; scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+    mask-image:linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
+  .top .nav::-webkit-scrollbar { display:none; }
+  .top .nav a { flex:none; padding:10px 0; }
+}
 .tools { margin-left:auto; display:flex; gap:10px; align-items:center; font-size:13px; }
 select { font:inherit; color:var(--blue-100); border:1px solid var(--cream-120); border-radius:6px; padding:4px 8px; background:var(--white); }
 .lang a { color:var(--grey-100); text-decoration:none; }

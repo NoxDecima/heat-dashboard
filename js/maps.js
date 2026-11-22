@@ -62,7 +62,11 @@ async function load() {
 // Display layers come as WebP; a browser that cannot decode a lossless WebP with alpha the way
 // geotiff.js does (createImageBitmap) reads the deflate copies. ?webp=0 forces them on a local server.
 const webpOk = () => (param("webp") === "0" || typeof createImageBitmap !== "function" ? Promise.resolve(false)
-  : createImageBitmap(new Blob([Uint8Array.from(atob(WEBP), ch => ch.charCodeAt(0))], { type: "image/webp" })).then(() => true, () => false));
+  : createImageBitmap(new Blob([Uint8Array.from(atob(WEBP), ch => ch.charCodeAt(0))])).then(() => true, () => false));
+
+// The OpenStreetMap credit carries the (c) and the licence link; the link is added if the text lacks the name.
+const OSM = '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>';
+const osm = h => h.includes("OpenStreetMap contributors") ? h.replace("OpenStreetMap contributors", OSM) : `${h} ${OSM}`;
 
 // --- CogLayer: one geotiff.js reader per file (one header read, one block cache for all its tiles);
 // each tile reads the source pixels it covers from the coarsest image still as fine as the screen and
@@ -81,7 +85,7 @@ const CogLayer = L.GridLayer.extend({
       }
       return out.sort((a, b) => a.res - b.res);
     });
-    this._images.catch(() => {});                // each tile reports the failure (tileerror)
+    this._images.catch(() => { this._failed = true; });   // each tile reports the failure (tileerror); setLayer retries
   },
   createTile(c, done) {
     const tile = document.createElement("canvas");
@@ -97,6 +101,7 @@ const CogLayer = L.GridLayer.extend({
     const c0 = Math.max(0, Math.floor(fx) - pad), r0 = Math.max(0, Math.floor(fy) - pad);
     const c1 = Math.min(img.w, Math.ceil(fx + f) + pad), r1 = Math.min(img.h, Math.ceil(fy + f) + pad);
     if (c1 <= c0 || r1 <= r0) return;
+    if (!tile.isConnected) return;               // Leaflet already dropped this tile
     const px = await img.image.readRasters({ window: [c0, r0, c1, r1], interleave: true });
     const w = c1 - c0, h = r1 - r0, rgba = new Uint8ClampedArray(w * h * 4);
     if (this.options.smooth) for (let i = 0; i < w * h; i++) rgba.set([px[i], px[i], px[i], 255], 4 * i);
@@ -109,7 +114,7 @@ const CogLayer = L.GridLayer.extend({
     ctx.drawImage(src, (c0 - fx) * k, (r0 - fy) * k, w * k, h * k);
   },
 });
-const cog = (file, options) => new CogLayer(mapsBase(city) + file, options).on("tileerror", () => { $("#maperr").hidden = false; });
+const cog = (file, options) => new CogLayer(mapsBase(city) + file, options).on("tileerror", function () { if (this._map) $("#maperr").hidden = false; });
 
 // --- page start ---
 start(async c => {
@@ -145,7 +150,7 @@ function setup(webp) {
   map.setMinZoom(map.getBoundsZoom(home) - 1);
   layers.relief = cog(M.relief.file, { smooth: true, attribution: t("maps.attr.relief") });
   layers.sat = L.tileLayer(ESRI, { maxNativeZoom: 18, maxZoom: 18, attribution: t("maps.attr.sat") });
-  outline = L.geoJSON(M.outline, { style: { color: INK, weight: 2, fill: false }, interactive: false, attribution: esc(X.credit) });
+  outline = L.geoJSON(M.outline, { style: { color: INK, weight: 2, fill: false }, interactive: false, attribution: osm(esc(X.credit)) });
   layers.lines = L.layerGroup([outline, L.geoJSON(M.river, { style: { color: RIVER, weight: 1.5 }, interactive: false })]).addTo(map);
   layers.station = M.station && L.circleMarker([M.station.lat, M.station.lon], { radius: 6, weight: 3, color: INK, fillColor: "#fff", fillOpacity: 1, interactive: false })
     .bindTooltip(esc(M.station.name), { permanent: true, direction: "auto", offset: [8, 0], className: "stn" }).addTo(map);
@@ -219,24 +224,27 @@ function setBase(b) {
 function setLayer(l) {
   current = l;
   if (heat) map.removeLayer(heat);
+  if (l && layers[l.id]?._failed) delete layers[l.id];   // a failed header read tries again
   heat = l && (layers[l.id] ||= cog(l.file, { pane: "heat", opacity: OPACITY }));
   if (heat) heat.addTo(map);
   $("#maperr").hidden = true;
   document.querySelectorAll("input[name=layer]").forEach(r => { r.checked = !!l && r.value === (l.kind === "type" ? l.id : l.kind); });
   $("#legend").hidden = !l;
   $("#layername").textContent = l ? (l.kind === "type" ? typeName(l.code) : t(`maps.btn.${l.kind}`)) : "";
-  map.getContainer().setAttribute("aria-label", t("maps.map.label", { layer: l ? X.layers[l.id].title : t("maps.map.none") }));
+  const box = map.getContainer(), title = l ? X.layers[l.id].title : t("maps.map.none");
+  box.setAttribute("role", "application");
+  box.setAttribute("aria-roledescription", "map");
+  box.setAttribute("aria-label", t("maps.map.label", { layer: l ? title[0].toLowerCase() + title.slice(1) : title }));
   if (!l) return;
   $("#legend").innerHTML = legend(l);
   panels(l);
 }
 
 // --- legend and panels ---
-const ticks = (lo, hi) => {       // round values, three to six of them
-  const raw = (hi - lo) / 5, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 5, 10].map(s => s * mag).find(s => s >= raw);
-  const out = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
-  return out;
+const ticks = (lo, hi) => {       // round values: the largest step that still gives three ticks
+  const at = step => { const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6)); return out; };
+  const step = [10, 5, 2, 1, 0.5].find(s => at(s).length >= 3) ?? 0.5;
+  return { step, vals: at(step) };
 };
 
 function legend(l) {
@@ -247,10 +255,10 @@ function legend(l) {
       : `<span><i style="background:${TYPE[0]}"></i>${t("maps.legend.type")}</span>`;
     return `<div class="lt">${esc(x.title)}</div><div class="tkey">${key}</div><div class="lm">${esc(x.note)}</div>`;
   }
-  const g = l.legend, at = v => ((v - g.lo) / (g.hi - g.lo)) * 100;
+  const g = l.legend, tk = ticks(g.lo, g.hi), at = v => ((v - g.lo) / (g.hi - g.lo)) * 100;
   return `<div class="lt"><span class="desk">${t("maps.legend.unit", { title: esc(x.title) })}</span><span class="ph">${t(`maps.short.${l.kind}`)}</span></div>
     <div class="cbarrow">${g.under ? `<span class="arr lo" role="img" aria-label="${t("maps.legend.under")}">◀</span>` : ""}<div class="cbar" aria-hidden="true" style="background:linear-gradient(to right,${g.colours.join(",")})"></div>${g.over ? `<span class="arr hi" role="img" aria-label="${t("maps.legend.over")}">▶</span>` : ""}</div>
-    <div class="ticks">${ticks(g.lo, g.hi).map(v => `<span style="left:${at(v)}%">${num(g.diverging ? Math.abs(v) : v)}</span>`).join("")}</div>
+    <div class="ticks">${tk.vals.map(v => `<span style="left:${at(v)}%">${num(g.diverging ? Math.abs(v) : v, tk.step < 1 ? 1 : 0)}</span>`).join("")}</div>
     ${g.diverging ? `<div class="ends"><span>${t("maps.legend.cooler")}</span><span>${t("maps.legend.warmer")}</span></div>` : ""}
     <div class="lm">${esc(x.note)}</div>`;
 }
@@ -263,7 +271,7 @@ function panels(l) {
     <div class="panel"><h3>${t("maps.panel.read")}</h3>${paras(x.read)}</div>
     <div class="panel"><h3>${t("maps.panel.sure")}</h3>${paras(x.sure)}${x.box ? `<div class="caveat"><b>${t("maps.box.lead")}</b> ${esc(x.box)}</div>` : ""}</div>
     <div class="panel"><h3>${t("maps.panel.details")}</h3><dl class="about">${x.details.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div>
-    <p class="credits">${X === M.texts.en && document.documentElement.lang !== "en" ? `${t("maps.english")} ` : ""}${esc(X.sources)} ${t("maps.dem")}</p>`;
+    <p class="credits">${X === M.texts.en && document.documentElement.lang !== "en" ? `${t("maps.english")} ` : ""}${osm(esc(X.sources))} ${t("maps.dem")}</p>`;
 }
 
 // --- check points (choice 12: no imagery online, a button to the live satellite tiles instead) ---
@@ -310,7 +318,7 @@ async function readout(ll) {
 function describe(s, v) {
   const steep = M.steep_code !== null && v.code >= M.steep_code, out = [];
   let sub = steep ? t("maps.read.slope", { type: esc(typeName(v.code - M.steep_code)), deg: num(M.steep_deg) }) : esc(typeName(v.code));
-  if (M.has_bands && v.dem !== null) sub = t("maps.read.height", { what: sub, height: num(v.dem) });
+  if (M.has_bands && v.dem != null) sub = t("maps.read.height", { what: sub, height: num(v.dem) });
   if (v.inside !== 1) out.push(`<p class="note">${t("maps.read.outside", { area: esc(X.area) })}</p>`);
   const ref = t(M.has_bands ? "maps.read.ref.bands" : "maps.read.ref.flat");
   if (v.day_median === null) out.push(`<p>${t("maps.read.noday")}</p>`);
@@ -332,7 +340,7 @@ function describe(s, v) {
 function card(html) {
   $("#readout").innerHTML = `<div class="float readout4" id="card" role="region" aria-labelledby="rdh"><div class="rh"><h3 id="rdh">${t("maps.read.title")}</h3>`
     + `<button type="button" class="x" id="rdx" aria-label="${t("maps.read.close")}">×</button></div>${html}</div>`;
-  $("#rdx").onclick = closeCard;
+  $("#rdx").onclick = () => { closeCard(); map.getContainer().focus(); };
   place();
 }
 
@@ -353,6 +361,8 @@ function place() {                 // desktop: beside the pin; a phone: under th
 // --- controls, the rail on a phone, keyboard ---
 function sheet(open) {
   document.body.classList.toggle("sheet", open);
+  const rail = $("#rail");
+  for (const [k, v] of [["role", "dialog"], ["aria-modal", "true"]]) open ? rail.setAttribute(k, v) : rail.removeAttribute(k);
   $("#layersbtn").setAttribute("aria-expanded", String(open));
   (open ? $("#rail input:checked") || $("#done") : $("#layersbtn")).focus();
 }
@@ -380,13 +390,14 @@ function controls(home) {
   map.on("move", place);
   map.on("popupopen", e => {
     const b = e.popup.getElement().querySelector(".sat");
-    if (b) b.onclick = () => satellite(e.popup.getLatLng());
+    if (b) { b.onclick = () => satellite(e.popup.getLatLng()); b.focus(); }
   });
   map.getContainer().addEventListener("keydown", e => {        // Enter reads the point under the crosshair
     if (e.key === "Enter" && e.target === map.getContainer()) readout(map.getCenter());
   });
   document.addEventListener("keydown", e => {
     if (e.key !== "Escape") return;
+    if (map._popup && map.hasLayer(map._popup)) return void map.closePopup();
     if (document.body.classList.contains("sheet")) sheet(false);
     else if (pinned) closeCard();
   });

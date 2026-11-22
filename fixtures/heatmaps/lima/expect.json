@@ -1,0 +1,18 @@
+{
+ "lat": -11.987547,
+ "lon": -76.841989,
+ "values": {
+  "summer": {
+   "day_median": 39.7,
+   "day_count": 74.0,
+   "day_p25": 37.3,
+   "day_p75": 44.0,
+   "relative": 2.5,
+   "night_median": 20.7,
+   "night_count": 168.0,
+   "code": 4.0,
+   "dem": 551.0,
+   "inside": 1.0
+  }
+ }
+}

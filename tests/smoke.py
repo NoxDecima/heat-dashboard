@@ -1,14 +1,23 @@
 """Smoke test: every page for every city against the fixtures, plus the error states.
 Run from the repository root with a Python that has Playwright, for example the EWS environment:
     /home/nox/Documents/Projects/Nox/EWS/.venv/bin/python tests/smoke.py
+    /home/nox/Documents/Projects/Nox/EWS/.venv/bin/python tests/smoke.py --live /path/to/EWS/data/heatmaps
+    /home/nox/Documents/Projects/Nox/EWS/.venv/bin/python tests/smoke.py --serve
+--serve serves the site with range requests on http://localhost:8000 until Ctrl-C. --live checks the heat maps tab against the public bucket after a publish (by hand): the page is served
+as http://localhost:8000, an origin the bucket's CORS rule allows, through Playwright's routing, so the
+port need not be free; the folder holds each city's expect.json.
 Exit 0 when every check passes."""
 import http.server
+import io
 import json
+import re
 import sys
 import threading
+import time
 from datetime import datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -17,11 +26,27 @@ CITIES = ("kaolack", "khulna", "lima")
 
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
+    """The repository, quietly; a single-range request gets 206 and that slice, as the bucket answers it."""
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(ROOT), **k)
 
     def log_message(self, *a):
         pass
+
+    def send_head(self):
+        m = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
+        path = Path(self.translate_path(self.path))
+        if not m or not path.is_file():
+            return super().send_head()
+        data = path.read_bytes()
+        a, b = int(m[1]), min(int(m[2] or len(data) - 1), len(data) - 1)
+        self.send_response(206)
+        self.send_header("Content-Type", self.guess_type(str(path)))
+        self.send_header("Content-Range", f"bytes {a}-{b}/{len(data)}")
+        self.send_header("Content-Length", str(b - a + 1))
+        self.send_header("Accept-Ranges", "bytes")
+        self.end_headers()
+        return io.BytesIO(data[a:b + 1])
 
 
 def page(browser):
@@ -30,6 +55,186 @@ def page(browser):
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     return pg, errors
+
+
+# Heat maps: some heat-layer canvas has a drawn pixel.
+DRAWN = """() => [...document.querySelectorAll('.leaflet-heat-pane canvas')].some(c => {
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i]) return true;
+  return false; })"""
+# ... and every heat tile of the view is drawn (the live budgets' "drawn").
+LOADED = """() => { const t = [...document.querySelectorAll('.leaflet-heat-pane .leaflet-tile')];
+  return t.length > 0 && t.every(x => x.classList.contains('leaflet-tile-loaded')); }"""
+BLANK_PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                          "1f15c4890000000d49444154789c6300010000000500010d0a2db40000000049454e44ae426082")
+PAGES = ("index", "history", "alert", "maps", "docs")
+
+
+def fmt(v, d=0):
+    """A number as the page prints it: Intl rounds halves away from zero."""
+    return f"{Decimal(str(abs(v))).quantize(Decimal(1).scaleb(-d), ROUND_HALF_UP):,}"
+
+
+def missing_numbers(card, v):
+    """The readout's numbers for values `v` (expect.json) that the card text lacks."""
+    text = card.replace("\u00a0", " ")
+    want = [f"about {fmt(v['day_median'])} °C", f"between {fmt(v['day_p25'])} °C and {fmt(v['day_p75'])} °C"]
+    if v["relative"] is not None and abs(v["relative"]) >= 1:
+        want.append(f"{fmt(v['relative'], 1)} °C {'warmer' if v['relative'] > 0 else 'cooler'}")
+    if v.get("night_median") is not None:
+        want.append(f"cools to about {fmt(v['night_median'])} °C")
+    return [w for w in want if w not in text]
+
+
+def heat_maps(b, base, check):
+    """The Heat maps tab against fixtures/heatmaps/ (written by the EWS repository's
+    surface_heat_maps.py --publish --fixture): each crop is centred on the readout point of expect.json."""
+    for city in CITIES:
+        folder = ROOT / "fixtures" / "heatmaps" / city
+        man, exp = (json.loads((folder / f).read_text()) for f in ("manifest.json", "expect.json"))
+        first = man["seasons"][0]["key"]
+        pg, errors = page(b)
+        tifs = []
+        pg.on("response", lambda r: tifs.append((r.url, r.status, r.request.headers.get("range"))) if r.url.endswith(".tif") else None)
+        pg.route("https://server.arcgisonline.com/**", lambda r: r.fulfill(body=BLANK_PNG, content_type="image/png"))
+        pg.goto(f"{base}maps.html?city={city}&data=fixtures/")
+        pg.wait_for_function(DRAWN, timeout=10000)
+        layers = [l for l in man["layers"] if l["season"] in (first, None)]
+        check(pg.locator("#rail input[name=layer]").count() == len(layers), f"{city}: maps, the rail lists the manifest's layers")
+        check(pg.title() == f"Heat maps · {city.capitalize()}", f"{city}: maps title")
+        check(pg.locator("meta[name=robots][content=noindex]").count() == 1, f"{city}: maps page has noindex")
+        box = pg.locator("#map").bounding_box()
+        pg.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        pg.wait_for_selector("#card .rsub", timeout=5000)
+        miss = missing_numbers(pg.inner_text("#card"), exp["values"][first])
+        check(not miss, f"{city}: maps, a click at the crop's centre reads expect.json {miss}")
+        check(tifs and all(s == 206 and r for _, s, r in tifs), f"{city}: maps, every .tif read is a range request answered 206")
+        if city == "khulna":
+            check(pg.locator("#rail input[value=station]").count() == 0 and pg.locator("#rail input[value=night]").count() == 0,
+                  "khulna: maps, no station toggle and no night layer")
+        if city == "kaolack":
+            pg.check("#rail input[value=day]")
+            pg.wait_for_function(DRAWN, timeout=5000)
+            ends = pg.locator("#legend .ticks span").all_inner_texts()
+            so = next(l["file"] for l in man["layers"] if l["id"] == "day_so")
+            pg.click("#rail [data-season=so]")
+            pg.wait_for_function(f"() => performance.getEntriesByType('resource').some(e => e.name.endsWith('{so}'))", timeout=5000)
+            check(pg.is_checked("#rail input[value=day]") and pg.get_attribute("#rail [data-season=so]", "aria-pressed") == "true",
+                  "kaolack: maps, the season switch keeps the day layer and swaps its file")
+            check(pg.locator("#legend .ticks span").all_inner_texts() == ends, "kaolack: maps, both day maps on one scale")
+        if city == "lima":
+            pg.check("#rail input[value=checks]")
+            pg.locator(".chk").first.focus()
+            pg.keyboard.press("Enter")
+            pg.wait_for_selector(".leaflet-popup .sat", timeout=5000)
+            check(pg.locator(".leaflet-popup img").count() == 0, "lima: maps, a check popup shows no imagery")
+            pg.click(".leaflet-popup .sat")
+            pg.wait_for_selector(".leaflet-tile-loaded[src*='/tile/18/']", timeout=5000)
+            check(pg.is_checked("#rail input[value=sat]") and pg.locator("#rail input[name=layer]:checked").count() == 0,
+                  "lima: maps, Show on satellite: satellite at zoom 18, heat layer off")
+        check(not errors, f"{city}: maps, no console errors {errors}")
+    pg, errors = page(b)
+    asked = []
+    pg.on("request", lambda r: asked.append(r.url.split("/")[-1]) if r.url.endswith(".tif") else None)
+    pg.goto(f"{base}maps.html?city=lima&data=fixtures/&webp=0")
+    pg.wait_for_function(DRAWN, timeout=10000)
+    man = json.loads((ROOT / "fixtures" / "heatmaps" / "lima" / "manifest.json").read_text())
+    webp, deflate = {l["file"] for l in man["layers"]}, {l["fallback"] for l in man["layers"]}
+    check(not set(asked) & webp and set(asked) & deflate, f"?webp=0 reads only the deflate copies {asked}")
+    pg.goto(f"{base}maps.html?city=lima&data=fixtures/edge/maps/")
+    pg.wait_for_selector(".error", timeout=5000)
+    check("needs an update" in pg.inner_text(".error"), "maps: unknown schema, update message")
+    pg.goto(f"{base}maps.html?city=lima&data=fixtures/none/")
+    pg.wait_for_selector(".error", timeout=5000)
+    check("could not be loaded" in pg.inner_text(".error"), "maps: missing manifest, load message")
+    m = b.new_page(viewport={"width": 390, "height": 844})
+    for name in PAGES:
+        m.goto(f"{base}{name}.html?city=lima&data=fixtures/")
+        m.wait_for_selector(".nav .on", timeout=5000)
+        r = m.evaluate("""() => { const n = document.querySelector('.nav'), a = n.querySelector('.on').getBoundingClientRect(),
+            b = n.getBoundingClientRect(); return { w: document.documentElement.scrollWidth, inside: a.left >= b.left && a.right <= b.right }; }""")
+        check(r["w"] == 390 and r["inside"], f"phone: {name} fits and its tab is in view {r}")
+    m.goto(f"{base}maps.html?city=lima&data=fixtures/")
+    m.wait_for_function(DRAWN, timeout=10000)
+    m.click("#layersbtn")
+    check(m.is_visible("#rail") and m.get_attribute("#layersbtn", "aria-expanded") == "true", "phone: maps, Layers opens the sheet")
+    m.keyboard.press("Escape")
+    check(not m.is_visible("#rail") and m.evaluate("document.activeElement.id") == "layersbtn",
+          "phone: maps, Escape closes the sheet and the focus returns to Layers")
+
+
+def live(folder: Path) -> int:
+    """--live: the tab for every city against the public bucket, within the spec's budgets."""
+    base, failures = "http://localhost:8000/", []
+
+    def serve(route):
+        """The site's own files as http://localhost:8000/..., the bucket's CORS origin, through Playwright's routing:
+        the port itself stays free (another program may listen there). The COGs come from the bucket, so no ranges here."""
+        path = ROOT / urlparse(route.request.url).path.lstrip("/")
+        route.fulfill(path=path) if path.is_file() else route.fulfill(status=404)
+
+    def check(cond, what):
+        print(("ok   " if cond else "FAIL ") + what)
+        if not cond:
+            failures.append(what)
+
+    def first_view(b, city, viewport, slow=False, warm=None):
+        """(seconds until every heat tile of the view is drawn, {kind: bytes}, statuses, console errors) in a fresh context;
+        `warm`: open that city first, so the libraries are cached as on a later visit; `slow`: Lighthouse Slow 4G."""
+        ctx = b.new_context(viewport=viewport)
+        ctx.route(f"{base}**", serve)
+        pg = ctx.new_page()
+        if warm:
+            pg.goto(f"{base}maps.html?city={warm}")
+            pg.wait_for_function(LOADED, timeout=60000)
+        got, errors = [], []
+        pg.on("response", lambda r: got.append(r) if "storage.googleapis.com" in r.url else None)
+        pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        if slow:
+            cdp = ctx.new_cdp_session(pg)
+            cdp.send("Network.enable")
+            cdp.send("Network.emulateNetworkConditions", {"offline": False, "latency": 150,
+                                                          "downloadThroughput": 1.6e6 / 8, "uploadThroughput": 750e3 / 8})
+        t0 = time.monotonic()
+        pg.goto(f"{base}maps.html?city={city}")
+        pg.wait_for_function(LOADED, timeout=60000)
+        seconds = time.monotonic() - t0
+        pg.wait_for_load_state("networkidle")
+        size = {"heat": 0, "relief": 0, "values": 0, "manifest": 0, "all": 0}
+        for r in got:
+            name, n = r.url.split("/")[-1], int(r.headers.get("content-length", 0))   # bodies of done responses can be gone
+            kind = "relief" if name.startswith("relief.") else "values" if name.startswith("values") else "heat" if name.endswith(".tif") else "manifest"
+            size[kind] += n
+            size["all"] += n
+        statuses = {r.status for r in got}
+        ctx.close()
+        return seconds, size, statuses, errors
+
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        for i, city in enumerate(CITIES):
+            other = CITIES[(i + 1) % len(CITIES)]
+            s, size, statuses, errors = first_view(b, city, {"width": 1280, "height": 800})
+            check(statuses <= {200, 206} and not errors, f"{city}: live, only 200 and 206, no console or CORS errors {statuses} {errors}")
+            check(size["all"] <= 1.5e6 and size["heat"] <= 1.2e6 and size["relief"] <= 300e3 and s <= 1.0,
+                  f"{city}: live desktop first view, {size} bytes, drawn in {s:.1f} s (budget 1.5 MB, heat 1.2 MB, relief 300 kB, 1 s)")
+            s, size, _, _ = first_view(b, city, {"width": 1280, "height": 800}, slow=True, warm=other)
+            check(s <= 11, f"{city}: live desktop on Slow 4G, drawn in {s:.1f} s (budget 11 s)")
+            s, size, _, _ = first_view(b, city, {"width": 390, "height": 844}, slow=True, warm=other)
+            kb = 150e3 if city == "lima" else float("inf")    # the spec's zoom 10 case; the smaller cities open at zoom 12
+            check(size["all"] <= kb and s <= 4, f"{city}: live phone on Slow 4G, {size['all'] / 1e3:.0f} kB, drawn in {s:.1f} s "
+                  f"(budget {'150 kB, ' if city == 'lima' else ''}4 s)")
+            exp = json.loads((folder / city / "expect.json").read_text())
+            pg = b.new_page(viewport={"width": 1280, "height": 800})
+            pg.route(f"{base}**", serve)
+            pg.goto(f"{base}maps.html?city={city}&at={exp['lat']},{exp['lon']}")
+            pg.wait_for_selector("#card .rsub", timeout=30000)
+            first = next(iter(exp["values"]))
+            miss = missing_numbers(pg.inner_text("#card"), exp["values"][first])
+            check(not miss, f"{city}: live, the readout at {exp['lat']}, {exp['lon']} equals --publish's numbers {miss}")
+        b.close()
+    print(f"\n{len(failures)} failure(s)")
+    return 1 if failures else 0
 
 
 def main() -> int:
@@ -193,6 +398,7 @@ def main() -> int:
         pg.wait_for_selector("#ladder .step", timeout=5000)
         check("also had this day at Danger or higher" in pg.inner_text("#ladder"), "two runs agree: Danger or higher")
         check(not errors, f"rule texts: no console errors {errors}")
+        heat_maps(b, base, check)
         m = b.new_page(viewport={"width": 390, "height": 844})
         m.goto(f"{base}alert.html?city=khulna&data=fixtures/")
         m.wait_for_selector("#days button", timeout=5000)
@@ -212,4 +418,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if sys.argv[1:2] == ["--serve"]:         # the site with range requests on http://localhost:8000 (the heat maps need them)
+        http.server.ThreadingHTTPServer(("127.0.0.1", 8000), Quiet).serve_forever()
+    sys.exit(live(Path(sys.argv[2])) if sys.argv[1:2] == ["--live"] else main())

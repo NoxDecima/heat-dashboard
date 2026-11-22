@@ -1,0 +1,30 @@
+{
+ "lat": 14.146913,
+ "lon": -16.050874,
+ "values": {
+  "amj": {
+   "day_median": 48.8,
+   "day_count": 85.0,
+   "day_p25": 47.3,
+   "day_p75": 50.8,
+   "relative": 2.3,
+   "night_median": 23.9,
+   "night_count": 597.0,
+   "code": 2.0,
+   "dem": 7.0,
+   "inside": 1.0
+  },
+  "so": {
+   "day_median": 41.7,
+   "day_count": 13.0,
+   "day_p25": 41.2,
+   "day_p75": 43.5,
+   "relative": 1.2,
+   "night_median": 28.5,
+   "night_count": 226.0,
+   "code": 2.0,
+   "dem": 7.0,
+   "inside": 1.0
+  }
+ }
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Heat maps</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w==" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg==" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@3.0.5/dist-browser/geotiff.js" integrity="sha384-QchpYxK+DqZYCChtK4SebrECTZEIQ0ahLhme9vwraN6KNxOGwtS66BG72wo1HQDN" crossorigin="anonymous"></script>
+<script type="module" src="js/maps.js"></script>
+</head>
+<body>
+<header class="top"></header>
+<main>
+  <section class="intro">
+    <span class="eyebrow" id="eyebrow"></span><span class="exp" data-i18n="experimental"></span>
+    <h1 data-i18n="maps.title"></h1>
+    <div class="sub" data-i18n="maps.intro"></div>
+  </section>
+</main>
+<div class="mwrap" id="body" hidden>
+  <div class="mgrid">
+    <aside class="panel rail" id="rail" aria-labelledby="railh">
+      <div class="railhead"><b id="railh" data-i18n="maps.layers"></b>
+        <button type="button" class="collapse" id="hide" aria-expanded="true" aria-controls="rail" data-i18n="maps.hide"></button>
+        <button type="button" class="done" id="done" data-i18n="maps.done"></button></div>
+      <div id="railbody"></div>
+    </aside>
+    <div class="mapwrap">
+      <div class="mapbox">
+        <div id="map" class="map"></div>
+        <button type="button" class="layersbtn" id="layersbtn" aria-expanded="false" aria-controls="rail"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2 16 6 9 10 2 6Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M2 9.5 9 13.5 16 9.5M2 12.5 9 16.5 16 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span data-i18n="maps.layers"></span> <small id="layername"></small></button>
+        <div class="ctl"><button type="button" id="zin">+</button><button type="button" id="zout">−</button><button type="button" id="zhome">⤢</button></div>
+        <div class="float legend4" id="legend"></div>
+        <p class="maperr" id="maperr" hidden></p>
+      </div>
+      <div id="readout" aria-live="polite"></div>
+    </div>
+  </div>
+  <section class="explain" id="explain" aria-labelledby="xh"></section>
+</div>
+<div class="backdrop" id="backdrop"></div>
+<footer></footer>
+</body>
+</html>

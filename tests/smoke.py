@@ -150,6 +150,11 @@ def heat_maps(b, base, check):
                 pg.wait_for_selector(".leaflet-tile-loaded[src*='/tile/18/']", timeout=5000)
                 check(pg.is_checked("#rail input[value=sat]") and pg.locator("#rail input[name=layer]:checked").count() == 0,
                       "lima: maps, Show on satellite: satellite at zoom 18, heat layer off")
+                check("Powered by Esri" in pg.inner_text(".leaflet-control-attribution"), "lima: maps, satellite attribution says Powered by Esri")
+                for v in (0, 100):
+                    pg.fill("#opac", str(v))
+                    op = pg.evaluate("getComputedStyle(document.querySelector('.leaflet-heat-pane')).opacity")
+                    check(op == str(v // 100) and pg.inner_text("#opacv") == f"{v}%", f"lima: maps, opacity slider at {v}: heat pane {op}, text {pg.inner_text('#opacv')}")
             check(not errors, f"{city}: maps, no console errors {errors}")
     with guard(check, "maps error states", b):
         pg, errors = page(b)

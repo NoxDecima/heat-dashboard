@@ -13,7 +13,7 @@ const TYPE = ["rgb(230,0,126)", "rgb(247,160,206)"];   // flat ground, slopes: E
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const WEBP = "UklGRhwAAABXRUJQVlA4TA8AAAAvAAAAEAcQ/Y8CBiKi/wEA";   // 1 x 1, lossless, with alpha
 const phone = matchMedia("(max-width: 820px)");
-let M, X, city, season, current = null, map, heat = null, outline, pinned = null;
+let M, X, city, season, current = null, map, heat = null, outline, pinned = null, opacity = 100;
 const layers = {}, values = {};
 
 // --- the manifest: checked like the city files, before anything is drawn ---
@@ -163,6 +163,8 @@ function setup(webp) {
   for (const l of M.layers) l.file = webp ? l.file : l.fallback;
   $("#maperr").textContent = t("maps.error.layer");
   rail();
+  const attr = map.attributionControl.getContainer(), lg = $(".legend4");     // the legend rides above the credit, however many lines it wraps to
+  new ResizeObserver(() => { lg.style.bottom = `${attr.offsetHeight + 8}px`; }).observe(attr);
   setBase("relief");
   setLayer(byKind("relative"));
   controls(home);
@@ -191,13 +193,22 @@ function rail() {
       ${M.station ? opt("checkbox", "show", "station", t("maps.show.station", { station: esc(M.station.name) }), "", shown("station")) : ""}
       ${opt("checkbox", "show", "lines", t("maps.show.lines"), "", shown("lines"))}</fieldset>
     <fieldset><legend>${t("maps.group.base")}</legend>${opt("radio", "base", "relief", t("maps.base.relief"), t("maps.base.relief.mt"), true)}
-      ${opt("radio", "base", "sat", t("maps.base.sat"), t("maps.base.sat.mt"))}</fieldset>`;
+      ${opt("radio", "base", "sat", t("maps.base.sat"), t("maps.base.sat.mt"))}
+      <div class="opt op"><label for="opac">${t("maps.opacity")}</label><output id="opacv" for="opac">${opacity}%</output>
+        <input type="range" id="opac" min="0" max="100" step="5" value="${opacity}"></div></fieldset>`;
+  map.getPane("heat").style.opacity = opacity / 100;
   $("#railbody").onchange = e => {
     const i = e.target;
+    if (i.type === "range") return;
     if (i.name === "layer") setLayer(i.value.startsWith("type") ? M.layers.find(l => l.id === i.value) : byKind(i.value));
     else if (i.name === "base") setBase(i.value);
     else if (i.checked) layers[i.value].addTo(map);
     else map.removeLayer(layers[i.value]);
+  };
+  $("#opac").oninput = e => {
+    opacity = +e.target.value;
+    map.getPane("heat").style.opacity = opacity / 100;
+    $("#opacv").textContent = `${opacity}%`;
   };
   $("#railbody").onclick = e => { const b = e.target.closest("[data-season]"); if (b) setSeason(b.dataset.season); };
 }
